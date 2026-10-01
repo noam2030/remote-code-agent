@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import Body, FastAPI
 from fastapi.responses import StreamingResponse
 import google.antigravity
 from google.antigravity import Agent, LocalAgentConfig
@@ -7,10 +7,13 @@ app = FastAPI()
 
 
 @app.post("/run")
-async def run(request: Request):
-    # Accept a raw text string from the request body
-    body = await request.body()
-    prompt = body.decode("utf-8")
+async def run(
+    prompt: str = Body(
+        ...,
+        media_type="text/plain",
+        description="Prompt text to send to the Google Antigravity agent",
+    )
+):
 
     # Initialize google.antigravity.LocalAgentConfig
     config = google.antigravity.LocalAgentConfig()
