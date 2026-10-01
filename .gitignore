@@ -24,5 +24,6 @@ wheels/
 env/
 venv/
 ENV/
+workspace/
 
 .DS_Store
