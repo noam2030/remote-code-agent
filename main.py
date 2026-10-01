@@ -1,10 +1,9 @@
-import asyncio
 import os
 from fastapi import Body, FastAPI
 from fastapi.responses import StreamingResponse
 import google.antigravity
 from google.antigravity import Agent, LocalAgentConfig, types
-from google.antigravity.hooks import hooks, policy
+from google.antigravity.hooks import policy
 
 app = FastAPI(title="Google Antigravity Agent Service")
 
@@ -31,57 +30,38 @@ async def run(
         description="Prompt text to send to the Google Antigravity agent",
     )
 ):
-    event_queue: asyncio.Queue[str] = asyncio.Queue()
-
-    @hooks.pre_tool_call_decide
-    async def on_pre_tool(data: types.ToolCall) -> types.HookResult:
-        target = (
-            data.args.get("TargetFile")
-            or data.args.get("AbsolutePath")
-            or data.args.get("CommandLine")
-            or ""
-        )
-        detail = f" -> {os.path.basename(target)}" if target else ""
-        event_queue.put_nowait(f"\n⚡ [Tool: {data.name}{detail}]\n")
-        return types.HookResult(allow=True)
-
-    @hooks.post_tool_call
-    async def on_post_tool(data):
-        event_queue.put_nowait("✓ [Action complete]\n\n")
-
-    # Initialize google.antigravity.LocalAgentConfig with workspace isolation and hooks
+    # Configure agent with workspace isolation and full tool permissions
     config = google.antigravity.LocalAgentConfig(
         workspaces=[WORKSPACE_DIR],
-        hooks=[on_pre_tool, on_post_tool],
         policies=[policy.allow_all()],
     )
 
-    # Stream thoughts, tool execution events, and response tokens back to client
+    # Stream real-time semantic chunks (ToolCalls, Thoughts, and Text deltas)
     async def token_stream():
         async with Agent(config) as agent:
             response = await agent.chat(prompt)
 
-            # Stream thinking thoughts if available
-            thought_started = False
-            async for thought in response.thoughts:
-                if not thought_started:
-                    yield "💭 [Thinking]\n"
-                    thought_started = True
-                while not event_queue.empty():
-                    yield event_queue.get_nowait()
-                yield thought
+            async for chunk in response.chunks:
+                if isinstance(chunk, types.Thought):
+                    yield f"💭 {chunk.text}"
+                elif isinstance(chunk, types.ToolCall):
+                    target = (
+                        chunk.args.get("file_path")
+                        or chunk.args.get("command_line")
+                        or chunk.args.get("TargetFile")
+                        or chunk.args.get("CommandLine")
+                        or ""
+                    )
+                    detail = f" -> {os.path.basename(target)}" if target else ""
+                    yield f"\n⚡ [Tool: {chunk.name}{detail}]\n"
+                elif isinstance(chunk, types.Text):
+                    yield chunk.text
 
-            if thought_started:
-                yield "\n\n"
-
-            # Stream tool execution notices and model text tokens
-            async for token in response:
-                while not event_queue.empty():
-                    yield event_queue.get_nowait()
-                yield token
-
-            # Flush any remaining tool events
-            while not event_queue.empty():
-                yield event_queue.get_nowait()
-
-    return StreamingResponse(token_stream(), media_type="text/plain")
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Connection": "keep-alive",
+    }
+    return StreamingResponse(
+        token_stream(), media_type="text/plain", headers=headers
+    )
