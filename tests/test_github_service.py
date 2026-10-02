@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock
 # Ensure src/ is discoverable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from remote_code_agent.config import load_env_file
+from remote_code_agent.config import load_env_file, GITHUB_OUTPUT_REPO
 from remote_code_agent.github_service import (
     check_github_auth,
     derive_project_slug,
@@ -65,6 +65,43 @@ class TestGithubService(unittest.TestCase):
             success, msg = publish_project_to_github(tmp_dir, "empty-repo")
             self.assertFalse(success)
             self.assertIn("No files were created", msg)
+
+    def test_default_output_repo(self):
+        self.assertEqual(GITHUB_OUTPUT_REPO, "remote-code-agent-output")
+
+    @patch("subprocess.run")
+    def test_publish_project_to_github_mocked_flow(self, mock_run):
+        # Mock subprocess run to simulate successful git clone, commit, push, and pr create
+        def mock_subprocess(cmd, **kwargs):
+            m = MagicMock()
+            m.returncode = 0
+            if "api" in cmd and "user" in cmd:
+                m.stdout = "testuser\n"
+            elif "rev-parse" in cmd:
+                m.returncode = 0  # not empty
+            elif "pr" in cmd and "create" in cmd:
+                m.stdout = "https://github.com/testuser/remote-code-agent-output/pull/42\n"
+            else:
+                m.stdout = ""
+                m.stderr = ""
+            return m
+
+        mock_run.side_effect = mock_subprocess
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create a sample generated file
+            with open(os.path.join(tmp_dir, "app.py"), "w") as f:
+                f.write("print('hello')")
+
+            with patch.dict(os.environ, {"GH_TOKEN": "gho_test_token"}):
+                success, info = publish_project_to_github(
+                    tmp_dir,
+                    "test-app-1234",
+                    prompt="Create a test app",
+                    target_repo="remote-code-agent-output",
+                )
+                self.assertTrue(success)
+                self.assertEqual(info, "https://github.com/testuser/remote-code-agent-output/pull/42")
 
 
 if __name__ == "__main__":
