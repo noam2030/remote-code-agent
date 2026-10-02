@@ -25,4 +25,4 @@ COPY . .
 ENV PORT=8080
 
 # Execute uvicorn server binding to 0.0.0.0 and dynamically resolving PORT
-CMD exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
+CMD exec uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}

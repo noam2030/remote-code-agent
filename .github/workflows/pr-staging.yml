@@ -1,0 +1,53 @@
+name: PR Verification & Staging Deployment
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Automated Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run automated test suite
+        run: |
+          python -m unittest discover tests
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: test
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run (Staging)
+        run: |
+          gcloud run deploy remote-code-agent-staging \
+            --source . \
+            --region ${{ vars.GCP_REGION || 'us-central1' }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars AGENT_WORKSPACE=workspace,GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
