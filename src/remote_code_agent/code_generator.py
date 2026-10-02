@@ -1,6 +1,6 @@
 """Alias module for code_creation."""
 
-from code_creation import (
+from remote_code_agent.code_creation import (
     BASE_WORKSPACE,
     create_code_stream,
     format_stream_chunk,

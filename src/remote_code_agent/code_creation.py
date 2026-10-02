@@ -7,7 +7,7 @@ import google.antigravity
 from google.antigravity import Agent, LocalAgentConfig, types
 from google.antigravity.hooks import policy
 
-from github_service import derive_project_slug, publish_project_to_github
+from remote_code_agent.github_service import derive_project_slug, publish_project_to_github
 
 # Dedicated workspace directory for agent-generated projects
 BASE_WORKSPACE = os.path.abspath(os.environ.get("AGENT_WORKSPACE", "workspace"))
