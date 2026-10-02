@@ -1,16 +1,21 @@
 import unittest
 import os
+import sys
+
+# Ensure src/ is discoverable even without package installation
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
+
 from google.antigravity import types
 
-from code_creation import (
+from remote_code_agent.code_creation import (
     BASE_WORKSPACE,
     format_stream_chunk,
     get_agent_config,
     generate_code_stream,
     create_code_stream,
 )
-import code_generator
-from github_service import derive_project_slug
+import remote_code_agent.code_generator as code_generator
+from remote_code_agent.github_service import derive_project_slug
 
 
 class TestCodeCreation(unittest.TestCase):

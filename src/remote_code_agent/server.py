@@ -3,7 +3,7 @@
 from fastapi import Body, FastAPI
 from fastapi.responses import StreamingResponse
 
-from code_creation import BASE_WORKSPACE, generate_code_stream
+from remote_code_agent.code_creation import BASE_WORKSPACE, generate_code_stream
 
 app = FastAPI(title="Google Antigravity Agent Service")
 
