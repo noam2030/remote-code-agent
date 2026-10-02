@@ -39,6 +39,7 @@ AGENT_URL="https://remote-code-agent-702552270447.us-central1.run.app/run" ./cha
 ## Project Structure
 
 - `main.py`: FastAPI server and `/run` streaming handler.
+- `github_service.py`: Automated Git initialization, repo creation, and GitHub publishing.
 - `Dockerfile`: Container build definition.
 - `chat.sh`: Interactive CLI client script.
 - `requirements.txt`: Python package dependencies.
