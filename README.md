@@ -85,10 +85,12 @@ AGENT_URL="https://remote-code-agent-702552270447.us-central1.run.app/run" ./cha
    uv pip install -r requirements.txt
    ```
 
-2. Add your Gemini API key to `.env`:
+2. Configure environment variables in `.env`:
    ```bash
-   echo 'GEMINI_API_KEY="your-api-key"' > .env
+   echo 'GEMINI_API_KEY="your-gemini-api-key"' > .env
+   echo "GH_TOKEN=\"$(gh auth token)\"" >> .env
    ```
+   *(Alternatively, generate a Personal Access Token with `repo` scope at https://github.com/settings/tokens)*
 
 3. Start the development server:
    ```bash
