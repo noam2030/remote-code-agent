@@ -4,6 +4,7 @@ from remote_code_agent.config import (
     AGENT_WORKSPACE,
     GEMINI_API_KEY,
     GH_TOKEN,
+    GITHUB_OUTPUT_REPO,
     PORT,
     load_env_file,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "AGENT_WORKSPACE",
     "GEMINI_API_KEY",
     "GH_TOKEN",
+    "GITHUB_OUTPUT_REPO",
     "PORT",
     "load_env_file",
     "format_stream_chunk",

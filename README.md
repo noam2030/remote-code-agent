@@ -89,6 +89,7 @@ AGENT_URL="https://remote-code-agent-702552270447.us-central1.run.app/run" ./cha
    ```bash
    echo 'GEMINI_API_KEY="your-gemini-api-key"' > .env
    echo "GH_TOKEN=\"$(gh auth token)\"" >> .env
+   echo 'GITHUB_OUTPUT_REPO="remote-code-agent-output"' >> .env
    ```
    *(Alternatively, generate a Personal Access Token with `repo` scope at https://github.com/settings/tokens)*
 
