@@ -48,6 +48,5 @@ jobs:
           gcloud run deploy remote-code-agent-staging \
             --source . \
             --region ${{ vars.GCP_REGION || 'us-central1' }} \
-            --platform managed \
             --allow-unauthenticated \
             --set-env-vars AGENT_WORKSPACE=workspace,GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}",GH_TOKEN="${{ secrets.GH_TOKEN }}",GITHUB_OUTPUT_REPO=remote-code-agent-output
