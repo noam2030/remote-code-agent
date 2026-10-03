@@ -74,6 +74,18 @@ def ensure_git_config(env: dict[str, str] | None = None):
     subprocess.run(["gh", "auth", "setup-git"], check=False, capture_output=True, env=env)
 
 
+def resolve_output_repo_full_name(target_repo: str | None = None, env: dict[str, str] | None = None) -> str:
+    """Resolves full GitHub repository slug (e.g. 'owner/remote-code-agent-output')."""
+    if env is None:
+        env = get_github_env()
+    target = target_repo or os.environ.get("GITHUB_OUTPUT_REPO") or GITHUB_OUTPUT_REPO or "remote-code-agent-output"
+    if "/" in target:
+        return target
+    owner_res = subprocess.run(["gh", "api", "user", "-q", ".login"], env=env, capture_output=True, text=True)
+    owner = owner_res.stdout.strip() if owner_res.returncode == 0 and owner_res.stdout.strip() else "noam2030"
+    return f"{owner}/{target}"
+
+
 def publish_project_to_github(
     project_dir: str,
     app_name: str,
@@ -118,13 +130,7 @@ def publish_project_to_github(
             f.write(f"# {app_name}\n\nGenerated autonomously by Google Antigravity Remote Code Agent.\n")
 
     # Resolve target repository full name (e.g. noam2030/remote-code-agent-output)
-    target = target_repo or os.environ.get("GITHUB_OUTPUT_REPO") or GITHUB_OUTPUT_REPO or "remote-code-agent-output"
-    if "/" in target:
-        full_repo = target
-    else:
-        owner_res = subprocess.run(["gh", "api", "user", "-q", ".login"], env=env, capture_output=True, text=True)
-        owner = owner_res.stdout.strip() if owner_res.returncode == 0 and owner_res.stdout.strip() else "noam2030"
-        full_repo = f"{owner}/{target}"
+    full_repo = resolve_output_repo_full_name(target_repo, env=env)
 
     # Use a temporary directory to clone the output repository, branch, and push
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -187,7 +193,7 @@ def publish_project_to_github(
             with open(root_readme, "r", encoding="utf-8") as f:
                 content = f.read()
             entry = f"- [{app_name}](./{app_name}/): Autonomous code generation"
-            if entry not in content:
+            if entry not in content and f"[{app_name}]" not in content:
                 with open(root_readme, "a", encoding="utf-8") as f:
                     f.write(f"{entry}\n")
 

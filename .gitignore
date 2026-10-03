@@ -27,3 +27,4 @@ ENV/
 workspace/
 
 .DS_Store
+.local/
