@@ -46,6 +46,8 @@ class TestCodeCreation(unittest.TestCase):
         test_dir = os.path.join(BASE_WORKSPACE, "test-unit")
         config = get_agent_config(test_dir)
         self.assertIn(test_dir, config.workspaces)
+        self.assertIn("Google Cloud Run", config.system_instructions)
+        self.assertIn("$PORT", config.system_instructions)
 
     def test_code_generator_alias(self):
         self.assertIs(code_generator.generate_code_stream, generate_code_stream)

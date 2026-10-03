@@ -33,6 +33,7 @@ AGENT_URL="https://remote-code-agent-702552270447.us-central1.run.app/run" ./cha
 - **Isolated Workspace**: All agent-generated files are strictly isolated in a designated `workspace/` directory.
 - **Optimized for Cloud Run**: Uses `python:3.11-slim` with zero pip caching to minimize cold start times and container footprint.
 - **Dynamic Port Resolution**: Binds to `0.0.0.0` on `${PORT:-8080}` as required by Cloud Run.
+- **Automated Cloud Run Deployment**: Code generated and pushed to [remote-code-agent-output](https://github.com/noam2030/remote-code-agent-output) triggers GitHub Actions to automatically build and deploy the application live to Google Cloud Run (project: `remote-code-agent-output-9182`), updating the repository README with live app URLs.
 
 ---
 

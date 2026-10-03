@@ -39,8 +39,12 @@ def get_agent_config(project_dir: str) -> google.antigravity.LocalAgentConfig:
         system_instructions=(
             "You are an expert autonomous software engineer. "
             "Write complete, production-ready code inside your current project workspace. "
-            "Always include a detailed README.md explaining the application structure and how to run it. "
-            "Ensure all files and dependencies are properly created in your workspace."
+            "Every project will be automatically built and deployed live to Google Cloud Run. "
+            "Ensure applications provide an interactive web interface or HTTP API (e.g. FastAPI, Flask, Streamlit, or HTML/JS) "
+            "or a Dockerfile listening on host 0.0.0.0 and port defined by $PORT (default 8080). "
+            "Always include comprehensive automated tests in a tests/ directory and a detailed README.md "
+            "explaining the application structure, endpoints, and how to use it. "
+            "Ensure all files and dependencies (requirements.txt or package.json) are properly created in your workspace."
         ),
         workspaces=[project_dir],
         policies=[policy.allow_all()],
@@ -79,6 +83,7 @@ async def generate_code_stream(prompt: str) -> AsyncGenerator[str, None]:
         yield (
             f"\n🎉 [GitHub] Successfully pushed code directly to main in {target_repo_name}!\n"
             f"🔗 Repository: {info}\n"
+            f"☁️ [Cloud Run] GitHub Actions is automatically building and deploying the app to Google Cloud.\n"
             f"📂 Local Path: {project_dir}\n"
         )
     else:
