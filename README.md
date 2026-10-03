@@ -27,13 +27,13 @@ AGENT_URL="https://remote-code-agent-702552270447.us-central1.run.app/run" ./cha
 
 ## Features
 
-- **FastAPI Endpoint (`POST /run`)**: Accepts a raw text prompt in the request body and streams back model response tokens asynchronously using `StreamingResponse(media_type="text/plain")`.
+- **Web Application UI (`GET /`, `GET /ui`)**: Rich, modern single-page dashboard for browsing projects, inspecting project files, viewing live Cloud Run deployments, and creating new projects.
+- **Correlated GitHub Project Targeting**: When a user selects a project, the autonomous agent loads the existing project workspace, generates/edits code directly for that project, and pushes commits straight to `<project_name>/` in the central GitHub repository ([remote-code-agent-output](https://github.com/noam2030/remote-code-agent-output)).
+- **Project Discovery APIs**: REST endpoints (`GET /api/projects`, `GET /api/projects/{project_name}`) for listing available projects with live Cloud Run links, GitHub tree links, and file lists.
+- **FastAPI Streaming Endpoint (`POST /run`)**: Accepts JSON `{"prompt": "...", "project": "name"}` or raw text body with `?project=` query param, streaming back model response tokens asynchronously using `StreamingResponse(media_type="text/plain")`.
 - **Google Antigravity SDK**: Integrates `LocalAgentConfig` and the `Agent` async context manager for autonomous agent workflows.
 - **Real-Time Process Streaming**: Streams live tool execution notices (`ToolCall`), thoughts, and token deltas chronologically directly from `response.chunks`.
-- **Isolated Workspace**: All agent-generated files are strictly isolated in a designated `workspace/` directory.
-- **Optimized for Cloud Run**: Uses `python:3.11-slim` with zero pip caching to minimize cold start times and container footprint.
-- **Dynamic Port Resolution**: Binds to `0.0.0.0` on `${PORT:-8080}` as required by Cloud Run.
-- **Automated Cloud Run Deployment**: Code generated and pushed to [remote-code-agent-output](https://github.com/noam2030/remote-code-agent-output) triggers GitHub Actions to automatically build and deploy the application live to Google Cloud Run (project: `remote-code-agent-output-9182`), updating the repository README with live app URLs.
+- **Automated Cloud Run Deployment**: Code pushed to [remote-code-agent-output](https://github.com/noam2030/remote-code-agent-output) triggers GitHub Actions to automatically build and deploy the application live to Google Cloud Run (project: `remote-code-agent-output-9182`), updating the repository README with live app URLs.
 
 ---
 
@@ -50,20 +50,26 @@ AGENT_URL="https://remote-code-agent-702552270447.us-central1.run.app/run" ./cha
 │       ├── __init__.py
 │       ├── __main__.py
 │       ├── server.py
+│       ├── web_ui.py
+│       ├── project_service.py
 │       ├── code_creation.py
 │       ├── code_generator.py
 │       ├── github_service.py
 │       └── main.py
 ├── tests/
 │   ├── test_code_creation.py
+│   ├── test_github_service.py
+│   ├── test_project_service.py
 │   └── test_server.py
 └── workspace/
 ```
 
 - `src/remote_code_agent/`: Primary Python package containing the agent service logic.
-  - `server.py`: FastAPI server and HTTP endpoint routing (`/`, `/run`).
+  - `web_ui.py`: Standalone single-page web dashboard for browsing projects and streaming code generation.
+  - `project_service.py`: Project catalog discovery, README parsing for Cloud Run URLs, and GitHub workspace synchronization.
+  - `server.py`: FastAPI server with HTML web app negotiation, `/api/projects` endpoints, and `/run`.
   - `code_creation.py`: Autonomous code creation workflow, workspace isolation, Antigravity Agent execution, and real-time streaming.
-  - `github_service.py`: Automated Git initialization, repository creation, and GitHub publishing.
+  - `github_service.py`: Git operations, repository syncing, and direct commit/push to `main`.
   - `code_generator.py`: Module alias for backwards-compatibility.
   - `main.py` & `__main__.py`: Package entrypoints.
 - `main.py`: Top-level application entrypoint wrapper.

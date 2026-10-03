@@ -14,9 +14,16 @@ from remote_code_agent.code_creation import (
     generate_code_stream,
     get_agent_config,
 )
+from remote_code_agent.project_service import (
+    get_project_details,
+    list_projects,
+    sanitize_project_name,
+    sync_project_from_github,
+)
+from remote_code_agent.web_ui import get_web_ui_html
 from remote_code_agent.server import app
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "app",
@@ -30,5 +37,10 @@ __all__ = [
     "format_stream_chunk",
     "generate_code_stream",
     "get_agent_config",
+    "list_projects",
+    "get_project_details",
+    "sanitize_project_name",
+    "sync_project_from_github",
+    "get_web_ui_html",
     "__version__",
 ]

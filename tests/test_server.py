@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 import os
 import sys
 
@@ -37,7 +38,53 @@ class TestServer(unittest.TestCase):
     def test_routes_configured(self):
         routes = [route.path for route in app.routes]
         self.assertIn("/", routes)
+        self.assertIn("/ui", routes)
+        self.assertIn("/api/projects", routes)
+        self.assertIn("/api/projects/{project_name}", routes)
         self.assertIn("/run", routes)
+
+    def test_root_html_negotiation(self):
+        response = self.client.get("/", headers={"Accept": "text/html,application/xhtml+xml"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response.headers.get("content-type", ""))
+        self.assertIn("Remote Code Agent", response.text)
+        self.assertIn("Select a project", response.text)
+
+    def test_ui_endpoint(self):
+        response = self.client.get("/ui")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response.headers.get("content-type", ""))
+        self.assertIn("Remote Code Agent", response.text)
+
+    def test_api_projects_endpoint(self):
+        response = self.client.get("/api/projects")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.json(), list)
+
+    def test_api_project_details_endpoint(self):
+        response = self.client.get("/api/projects/test-project-sample")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["name"], "test-project-sample")
+        self.assertIn("github_url", data)
+
+    def test_run_empty_prompt_error(self):
+        response = self.client.post("/run", json={"prompt": "  "})
+        self.assertEqual(response.status_code, 400)
+
+    @patch("remote_code_agent.server.generate_code_stream")
+    def test_run_with_project_json_payload(self, mock_gen):
+        async def fake_stream(prompt, project_name=None):
+            yield f"Project: {project_name}, Prompt: {prompt}"
+
+        mock_gen.side_effect = fake_stream
+        response = self.client.post(
+            "/run",
+            json={"prompt": "Add healthcheck", "project": "hello-world-from-2052"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Project: hello-world-from-2052", response.text)
+        self.assertIn("Prompt: Add healthcheck", response.text)
 
 
 if __name__ == "__main__":
