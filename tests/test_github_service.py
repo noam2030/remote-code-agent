@@ -71,7 +71,7 @@ class TestGithubService(unittest.TestCase):
 
     @patch("subprocess.run")
     def test_publish_project_to_github_mocked_flow(self, mock_run):
-        # Mock subprocess run to simulate successful git clone, commit, push, and pr create
+        # Mock subprocess run to simulate successful git clone, commit, and push directly to main
         def mock_subprocess(cmd, **kwargs):
             m = MagicMock()
             m.returncode = 0
@@ -79,8 +79,6 @@ class TestGithubService(unittest.TestCase):
                 m.stdout = "testuser\n"
             elif "rev-parse" in cmd:
                 m.returncode = 0  # not empty
-            elif "pr" in cmd and "create" in cmd:
-                m.stdout = "https://github.com/testuser/remote-code-agent-output/pull/42\n"
             else:
                 m.stdout = ""
                 m.stderr = ""
@@ -101,7 +99,7 @@ class TestGithubService(unittest.TestCase):
                     target_repo="remote-code-agent-output",
                 )
                 self.assertTrue(success)
-                self.assertEqual(info, "https://github.com/testuser/remote-code-agent-output/pull/42")
+                self.assertEqual(info, "https://github.com/testuser/remote-code-agent-output/tree/main/test-app-1234")
 
 
 if __name__ == "__main__":

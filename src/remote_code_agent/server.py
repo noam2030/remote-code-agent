@@ -15,8 +15,9 @@ async def root():
         "service": "Google Antigravity Agent Service",
         "docs": "/docs",
         "workspace": BASE_WORKSPACE,
-        "github_publishing": "enabled (pull requests to remote-code-agent-output)",
+        "github_publishing": "enabled (direct push to main in remote-code-agent-output)",
         "output_repository": "remote-code-agent-output",
+        "output_branch": "main",
     }
 
 

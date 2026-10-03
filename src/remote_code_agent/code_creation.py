@@ -71,14 +71,14 @@ async def generate_code_stream(prompt: str) -> AsyncGenerator[str, None]:
             if formatted:
                 yield formatted
 
-    # Automatic GitHub Commit & Pull Request to central output repository
+    # Automatic GitHub Commit & Direct Push to main in central output repository
     target_repo_name = os.environ.get("GITHUB_OUTPUT_REPO", "remote-code-agent-output")
-    yield f"\n\n📦 [GitHub] Publishing generated code to {target_repo_name} (branch: feat/{app_name})...\n"
+    yield f"\n\n📦 [GitHub] Publishing generated code directly to {target_repo_name} (branch: main)...\n"
     success, info = publish_project_to_github(project_dir, app_name, prompt=prompt)
     if success:
         yield (
-            f"\n🎉 [GitHub] Successfully pushed code to {target_repo_name}!\n"
-            f"🔗 Pull Request: {info}\n"
+            f"\n🎉 [GitHub] Successfully pushed code directly to main in {target_repo_name}!\n"
+            f"🔗 Repository: {info}\n"
             f"📂 Local Path: {project_dir}\n"
         )
     else:
