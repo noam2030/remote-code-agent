@@ -12,8 +12,10 @@ from remote_code_agent.github_service import (
     check_github_auth,
     derive_project_slug,
     ensure_git_config,
+    get_authenticated_repo_url,
     get_github_env,
     publish_project_to_github,
+    sanitize_git_output,
 )
 
 
@@ -100,6 +102,20 @@ class TestGithubService(unittest.TestCase):
                 )
                 self.assertTrue(success)
                 self.assertEqual(info, "https://github.com/testuser/remote-code-agent-output/tree/main/test-app-1234")
+
+    def test_get_authenticated_repo_url(self):
+        url_with_token = get_authenticated_repo_url("owner/repo", env={"GH_TOKEN": "my-secret-token"})
+        self.assertEqual(url_with_token, "https://x-access-token:my-secret-token@github.com/owner/repo.git")
+
+        url_no_token = get_authenticated_repo_url("owner/repo", env={})
+        self.assertEqual(url_no_token, "https://github.com/owner/repo.git")
+
+    def test_sanitize_git_output(self):
+        raw = "fatal: could not read from 'https://x-access-token:gho_12345secret@github.com/owner/repo.git'"
+        sanitized = sanitize_git_output(raw)
+        self.assertEqual(sanitized, "fatal: could not read from 'https://github.com/owner/repo.git'")
+        self.assertNotIn("gho_12345secret", sanitized)
+        self.assertEqual(sanitize_git_output(""), "")
 
 
 if __name__ == "__main__":
