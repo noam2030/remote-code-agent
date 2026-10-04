@@ -1,9 +1,11 @@
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 
 from remote_code_agent.core.config import (
     CORS_ORIGINS,
+    FRONTEND_URL,
+    GCP_OUTPUT_PROJECT_ID,
     PORT,
 )
 from remote_code_agent.services.code_creation import BASE_WORKSPACE, generate_code_stream
@@ -13,10 +15,9 @@ from remote_code_agent.services.project_service import (
     get_project_file_content,
     list_projects,
 )
-from remote_code_agent.web_ui import get_web_ui_html
 
 app = FastAPI(
-    title="Google Antigravity Agent Service",
+    title="Google Antigravity Agent Service (Backend API)",
     description="Autonomous code generation backend with Google Cloud Run & Vercel support",
     version="0.3.0",
 )
@@ -32,31 +33,28 @@ app.add_middleware(
 
 
 @app.get("/")
-async def root(request: Request, format: str | None = Query(None)):
-    """Root endpoint: serves JSON service metadata or HTML dashboard if requested by browser."""
-    accept = request.headers.get("accept", "")
-    if format == "html" or ("text/html" in accept and "application/json" not in accept):
-        return HTMLResponse(content=get_web_ui_html())
-
+async def root():
+    """Root endpoint: serves JSON service metadata and API information."""
     return {
         "status": "online",
-        "service": "Google Antigravity Agent Service",
+        "service": "Google Antigravity Agent Service (Backend API)",
         "version": "0.3.0",
         "docs": "/docs",
         "api": "/api",
-        "ui": "/ui",
+        "frontend": FRONTEND_URL,
         "workspace": BASE_WORKSPACE,
         "cors_enabled": True,
         "github_publishing": "enabled (direct push to main in remote-code-agent-output)",
         "output_repository": "remote-code-agent-output",
         "output_branch": "main",
+        "firestore_database": f"{GCP_OUTPUT_PROJECT_ID} / (default)",
     }
 
 
-@app.get("/ui", response_class=HTMLResponse)
+@app.get("/ui")
 async def ui():
-    """Direct route for fallback Web Application dashboard."""
-    return HTMLResponse(content=get_web_ui_html())
+    """Redirect to the deployed frontend web application on Vercel."""
+    return RedirectResponse(url=FRONTEND_URL, status_code=307)
 
 
 @app.get("/api/health")
