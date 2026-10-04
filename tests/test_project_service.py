@@ -148,6 +148,110 @@ class TestProjectService(unittest.TestCase):
         self.assertFalse(success)
         self.assertIn("GitHub authentication required", msg)
 
+    def test_count_file_lines_and_inspect_project_files(self):
+        from remote_code_agent.project_service import count_file_lines, inspect_project_files
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            f1 = os.path.join(tmp_dir, "app.py")
+            with open(f1, "w") as f:
+                f.write("line 1\nline 2\nline 3\n")
+
+            f2 = os.path.join(tmp_dir, "style.css")
+            with open(f2, "w") as f:
+                f.write("body { margin: 0; }\n")
+
+            f_bin = os.path.join(tmp_dir, "image.png")
+            with open(f_bin, "wb") as f:
+                f.write(b"\x89PNG\r\n\x1a\n\x00\x00\x00")
+
+            self.assertEqual(count_file_lines(f1), 3)
+            self.assertEqual(count_file_lines(f2), 1)
+            self.assertEqual(count_file_lines(f_bin), 0)
+
+            files_detail, total_loc = inspect_project_files(tmp_dir)
+            self.assertEqual(total_loc, 4)
+            paths = [f["path"] for f in files_detail]
+            self.assertIn("app.py", paths)
+            self.assertIn("style.css", paths)
+            self.assertIn("image.png", paths)
+
+    def test_load_and_record_project_stats(self):
+        from remote_code_agent.project_service import load_project_stats, record_project_run_tokens
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            proj_name = "sample-stats-app"
+            proj_dir = os.path.join(tmp_dir, proj_name)
+            os.makedirs(proj_dir, exist_ok=True)
+
+            # Initial stats with empty workspace
+            stats0 = load_project_stats(proj_name, workspace_dir=tmp_dir)
+            self.assertEqual(stats0["total_tokens"], 0)
+
+            # Record first run
+            stats1 = record_project_run_tokens(
+                proj_name,
+                tokens=1500,
+                prompt_tokens=1000,
+                completion_tokens=500,
+                workspace_dir=tmp_dir,
+            )
+            self.assertEqual(stats1["total_tokens"], 1500)
+            self.assertEqual(stats1["build_runs"], 1)
+
+            # Record second run (accumulates)
+            stats2 = record_project_run_tokens(
+                proj_name,
+                tokens=2000,
+                prompt_tokens=1200,
+                completion_tokens=800,
+                workspace_dir=tmp_dir,
+            )
+            self.assertEqual(stats2["total_tokens"], 3500)
+            self.assertEqual(stats2["prompt_tokens"], 2200)
+            self.assertEqual(stats2["completion_tokens"], 1300)
+            self.assertEqual(stats2["build_runs"], 2)
+
+            # Verify persisted on reload
+            loaded = load_project_stats(proj_name, workspace_dir=tmp_dir)
+            self.assertEqual(loaded["total_tokens"], 3500)
+
+    def test_get_project_file_content_and_security(self):
+        from remote_code_agent.project_service import get_project_file_content
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            proj_name = "test-file-viewer-app"
+            proj_dir = os.path.join(tmp_dir, proj_name)
+            os.makedirs(proj_dir, exist_ok=True)
+
+            code_file = os.path.join(proj_dir, "server.py")
+            with open(code_file, "w") as f:
+                f.write("from fastapi import FastAPI\napp = FastAPI()\n")
+
+            bin_file = os.path.join(proj_dir, "logo.png")
+            with open(bin_file, "wb") as f:
+                f.write(b"\x89PNG\x00binary\x00data")
+
+            # Normal read
+            res = get_project_file_content(proj_name, "server.py", workspace_dir=tmp_dir)
+            self.assertEqual(res["project"], proj_name)
+            self.assertEqual(res["path"], "server.py")
+            self.assertEqual(res["lines"], 2)
+            self.assertIn("from fastapi import FastAPI", res["content"])
+            self.assertFalse(res["is_binary"])
+
+            # Binary read
+            bin_res = get_project_file_content(proj_name, "logo.png", workspace_dir=tmp_dir)
+            self.assertTrue(bin_res["is_binary"])
+            self.assertIsNone(bin_res["content"])
+
+            # Non-existent file
+            with self.assertRaises(FileNotFoundError):
+                get_project_file_content(proj_name, "missing.py", workspace_dir=tmp_dir)
+
+            # Path traversal security violation
+            with self.assertRaises(PermissionError):
+                get_project_file_content(proj_name, "../../etc/passwd", workspace_dir=tmp_dir)
+
 
 if __name__ == "__main__":
     unittest.main()
