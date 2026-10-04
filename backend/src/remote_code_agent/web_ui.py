@@ -1116,6 +1116,11 @@ def get_web_ui_html() -> str:
               <span class="stat-label">Files:</span>
               <strong class="stat-val" id="bannerFilesVal">0</strong>
             </div>
+            <div class="banner-stat-pill" title="Persistent Data Stored in Google Cloud Firestore" style="border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1);">
+              <span class="stat-icon">🔥</span>
+              <span class="stat-label">Firestore:</span>
+              <strong class="stat-val" id="bannerFirestoreVal" style="color: #fbbf24;">collection</strong>
+            </div>
           </div>
         </div>
         <div class="banner-actions">
@@ -1438,6 +1443,11 @@ def get_web_ui_html() -> str:
       bannerLocVal.textContent = `${(p.lines_of_code || 0).toLocaleString()} LOC`;
       bannerTokensVal.textContent = (p.tokens_spent || 0).toLocaleString();
       bannerFilesVal.textContent = (p.files_count || 0);
+
+      const bannerFirestoreVal = document.getElementById('bannerFirestoreVal');
+      if (bannerFirestoreVal) {
+        bannerFirestoreVal.textContent = p.name;
+      }
 
       if (p.cloud_run_url) {
         bannerLiveLink.href = p.cloud_run_url;

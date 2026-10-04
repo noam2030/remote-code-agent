@@ -86,6 +86,7 @@ def synthesize_prompts_fallback(
             "## Technical Guidelines\n"
             "- Implement an interactive web interface or HTTP API with clean architecture.\n"
             "- Ensure deployment compatibility with Google Cloud Run (listen on 0.0.0.0:$PORT, default 8080).\n"
+            f"- Any persistent data for the app must be stored in Google Cloud Firestore (project 'remote-code-agent-output-9182') as a dedicated collection named '{app_name}'.\n"
             "- Provide automated tests in tests/ and a comprehensive README.md.\n"
         )
 
@@ -129,9 +130,11 @@ async def synthesize_master_prompt_with_ai(
             "1. The output must be written in such a way that if a developer or AI coding agent takes ONLY this synthesized prompt "
             "and uses it on a brand new, empty project, they will produce the exact same final application with all features, architecture, "
             "endpoints, styling, and refinements included.\n"
-            "2. Seamlessly merge all requirements. If the new prompt modifies, refines, or supersedes an earlier instruction, "
+            "2. Ensure any requirement for persistent application data is captured as requiring storage in Google Cloud Firestore "
+            f"(project 'remote-code-agent-output-9182') under a dedicated collection named '{app_name}'.\n"
+            "3. Seamlessly merge all requirements. If the new prompt modifies, refines, or supersedes an earlier instruction, "
             "update that requirement rather than repeating contradictory instructions.\n"
-            "3. Do NOT output conversational greetings, preamble, or wrapping markdown code fences (```). "
+            "4. Do NOT output conversational greetings, preamble, or wrapping markdown code fences (```). "
             "Output only the clean, complete master prompt specification text."
         )
 

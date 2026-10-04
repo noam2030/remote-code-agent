@@ -74,6 +74,8 @@ class TestPromptService(unittest.IsolatedAsyncioTestCase):
         self.assertIn("# Master Project Specification: chat-stream", prompt)
         self.assertIn("Create a real-time chat application with WebSockets", prompt)
         self.assertIn("Google Cloud Run", prompt)
+        self.assertIn("Firestore", prompt)
+        self.assertIn("chat-stream", prompt)
 
     def test_synthesize_prompts_fallback_incremental(self):
         initial = (
