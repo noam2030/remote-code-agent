@@ -4,14 +4,12 @@ import type { Project, ProjectFileDetail } from '../types'
 interface FilesDrawerProps {
   project: Project | null
   isOpen: boolean
-  onClose: () => void
   onOpenFile: (filePath: string) => void
 }
 
 export const FilesDrawer: React.FC<FilesDrawerProps> = ({
   project,
   isOpen,
-  onClose,
   onOpenFile,
 }) => {
   if (!isOpen || !project) return null
@@ -27,35 +25,38 @@ export const FilesDrawer: React.FC<FilesDrawerProps> = ({
         }))
 
   return (
-    <div className="files-drawer">
-      <div className="drawer-header">
-        <h3 className="drawer-title">
-          📂 Files in {project.name} ({files.length})
-        </h3>
-        <button className="btn-close" onClick={onClose}>
-          ✕
-        </button>
+    <div className="files-panel">
+      <div className="files-header">
+        <span>
+          Files in this project{' '}
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 'normal', marginLeft: '0.4rem' }}>
+            (Click to view content)
+          </span>
+        </span>
+        <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>Synced with workspace</span>
       </div>
-
-      <div className="drawer-list">
+      <div className="files-list">
         {files.length === 0 ? (
-          <div className="drawer-empty">No files generated yet.</div>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>No files generated yet.</span>
         ) : (
           files.map((file) => (
             <div
               key={file.path}
-              className="drawer-file-item"
+              className="file-item-card"
               onClick={() => onOpenFile(file.path)}
             >
-              <div className="file-info">
-                <span className="file-icon">📄</span>
-                <span className="file-path">{file.path}</span>
+              <div className="file-item-main">
+                <span>📄</span>
+                <span className="file-item-path">{file.path}</span>
               </div>
-              <div className="file-meta">
-                {file.lines > 0 && <span className="meta-pill">{file.lines} L</span>}
-                {file.size_bytes > 0 && (
-                  <span className="meta-pill">{(file.size_bytes / 1024).toFixed(1)} KB</span>
+              <div className="file-item-meta">
+                {file.lines > 0 && (
+                  <span className="file-pill file-pill-loc">{file.lines} LOC</span>
                 )}
+                {file.size_bytes > 0 && (
+                  <span className="file-pill">{(file.size_bytes / 1024).toFixed(1)} KB</span>
+                )}
+                <span className="file-item-btn">View →</span>
               </div>
             </div>
           ))

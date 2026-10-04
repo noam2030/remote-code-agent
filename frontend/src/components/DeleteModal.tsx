@@ -21,38 +21,37 @@ export const DeleteModal: React.FC<DeleteModalProps> = ({
 
   return (
     <div className="modal-backdrop" onClick={onCancel}>
-      <div className="modal-container modal-sm" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 className="modal-title text-danger">⚠️ Delete Project</h3>
-          <button className="btn-close" onClick={onCancel} disabled={loading}>
-            ✕
-          </button>
-        </div>
+      <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>⚠️ Delete Project: {projectName}</h3>
 
-        <div className="modal-body">
-          <p>
-            Are you sure you want to delete project <strong>&quot;{projectName}&quot;</strong>?
-          </p>
-          <div className="delete-option">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={deleteRemote}
-                onChange={(e) => setDeleteRemote(e.target.checked)}
-                disabled={loading}
-              />
-              <span>Also delete from GitHub repository (main branch)</span>
-            </label>
-          </div>
-          <p className="warning-text">This action cannot be undone.</p>
-        </div>
+        <p>
+          Are you sure you want to delete project <strong>&quot;{projectName}&quot;</strong>?
+        </p>
 
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={onCancel} disabled={loading}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={deleteRemote}
+            onChange={(e) => setDeleteRemote(e.target.checked)}
+            disabled={loading}
+          />
+          <span>Also delete from GitHub repository (remote-code-agent-output/main)</span>
+        </label>
+
+        <p style={{ color: '#f87171', fontSize: '0.8rem' }}>This action cannot be undone.</p>
+
+        <div className="confirm-modal-actions">
+          <button
+            type="button"
+            className="action-btn action-btn-secondary"
+            onClick={onCancel}
+            disabled={loading}
+          >
             Cancel
           </button>
           <button
-            className="btn-danger"
+            type="button"
+            className="action-btn action-btn-danger"
             onClick={() => onConfirm(deleteRemote)}
             disabled={loading}
           >

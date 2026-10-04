@@ -14,8 +14,8 @@ import { FileViewerModal } from './components/FileViewerModal'
 import { Header } from './components/Header'
 import { MasterPromptModal } from './components/MasterPromptModal'
 import { PromptEditor } from './components/PromptEditor'
-import { SettingsModal } from './components/SettingsModal'
 import { Sidebar } from './components/Sidebar'
+import { TargetProjectBanner } from './components/TargetProjectBanner'
 import { TerminalStream } from './components/TerminalStream'
 
 export function App() {
@@ -33,7 +33,6 @@ export function App() {
   const [loadingMasterPrompt, setLoadingMasterPrompt] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deletingProject, setDeletingProject] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   const showToast = (msg: string) => {
@@ -46,10 +45,12 @@ export function App() {
     try {
       const data = await listProjects()
       setProjects(data)
-      // Keep selected project updated
       if (selectedProject) {
         const found = data.find((p) => p.name === selectedProject.name)
         if (found) setSelectedProject(found)
+      } else if (data.length > 0) {
+        // Auto-select first project if none selected
+        handleSelectProject(data[0])
       }
     } catch (err: any) {
       showToast(`Error fetching projects: ${err.message}`)
@@ -68,7 +69,7 @@ export function App() {
       try {
         const detail = await getProject(proj.name)
         setSelectedProject(detail)
-      } catch (err) {
+      } catch {
         // Fallback to existing summary
       }
     }
@@ -137,29 +138,46 @@ export function App() {
     }
   }
 
+  const filesCount =
+    selectedProject?.files_count ||
+    (selectedProject?.files_detail ? selectedProject.files_detail.length : 0) ||
+    (selectedProject?.files ? selectedProject.files.length : 0)
+
   return (
     <div className="app-layout">
       {toastMessage && <div className="app-toast">{toastMessage}</div>}
 
-      <Header
-        project={selectedProject}
-        onToggleFiles={() => setFilesDrawerOpen((prev) => !prev)}
-        onOpenMasterPrompt={handleOpenMasterPrompt}
-        onOpenDelete={() => setDeleteModalOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
-        filesOpen={filesDrawerOpen}
-      />
+      <Header />
 
-      <div className="app-body">
+      <main className="main-grid">
         <Sidebar
           projects={projects}
           selectedProject={selectedProject}
           loading={loadingProjects}
           onSelectProject={handleSelectProject}
           onRefresh={fetchProjects}
+          onDeleteProject={(proj) => {
+            setSelectedProject(proj)
+            setDeleteModalOpen(true)
+          }}
         />
 
-        <main className="main-content">
+        <section className="content-area">
+          <TargetProjectBanner
+            project={selectedProject}
+            filesCount={filesCount}
+            filesOpen={filesDrawerOpen}
+            onToggleFiles={() => setFilesDrawerOpen((prev) => !prev)}
+            onOpenMasterPrompt={handleOpenMasterPrompt}
+            onOpenDelete={() => setDeleteModalOpen(true)}
+          />
+
+          <FilesDrawer
+            project={selectedProject}
+            isOpen={filesDrawerOpen}
+            onOpenFile={handleOpenFile}
+          />
+
           <PromptEditor
             selectedProject={selectedProject}
             isGenerating={isGenerating}
@@ -171,15 +189,8 @@ export function App() {
             isGenerating={isGenerating}
             onClear={() => setStreamLogs('')}
           />
-        </main>
-
-        <FilesDrawer
-          project={selectedProject}
-          isOpen={filesDrawerOpen}
-          onClose={() => setFilesDrawerOpen(false)}
-          onOpenFile={handleOpenFile}
-        />
-      </div>
+        </section>
+      </main>
 
       <FileViewerModal
         file={activeFile}
@@ -199,15 +210,6 @@ export function App() {
         loading={deletingProject}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteModalOpen(false)}
-      />
-
-      <SettingsModal
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        onSave={() => {
-          showToast('Backend URL updated')
-          fetchProjects()
-        }}
       />
     </div>
   )

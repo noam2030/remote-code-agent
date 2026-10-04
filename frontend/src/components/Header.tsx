@@ -1,113 +1,41 @@
 import React from 'react'
-import type { Project } from '../types'
 
-interface HeaderProps {
-  project: Project | null
-  onToggleFiles: () => void
-  onOpenMasterPrompt: () => void
-  onOpenDelete: () => void
-  onOpenSettings: () => void
-  filesOpen: boolean
-}
-
-export const Header: React.FC<HeaderProps> = ({
-  project,
-  onToggleFiles,
-  onOpenMasterPrompt,
-  onOpenDelete,
-  onOpenSettings,
-  filesOpen,
-}) => {
-  const hasPromptTxt =
-    project &&
-    ((project.files && project.files.includes('prompt.txt')) ||
-      (project.files_detail && project.files_detail.some((f) => f.path === 'prompt.txt')))
-
+export const Header: React.FC = () => {
   return (
     <header className="app-header">
-      <div className="header-left">
-        <div className="logo-badge">
-          <span className="logo-icon">🚀</span>
-          <div>
-            <h1 className="logo-text">Remote Code Agent</h1>
-            <span className="version-tag">TypeScript &bull; Cloud Run &bull; Vercel</span>
-          </div>
+      <div className="brand">
+        <div className="brand-logo">⚡</div>
+        <div className="brand-text">
+          <h1>Remote Code Agent</h1>
+          <p className="brand-subtitle">
+            Google Antigravity Agent Service • Cloud Run &amp; GitHub Continuous Deployment
+          </p>
         </div>
       </div>
-
-      <div className="header-center">
-        {project ? (
-          <div className="active-project-bar">
-            <span className="project-badge">Project: {project.name}</span>
-            <span className="stat-pill">{project.lines_of_code.toLocaleString()} LOC</span>
-            <span className="stat-pill">{project.tokens_spent.toLocaleString()} Tokens</span>
-            <span
-              className="stat-pill firestore-pill"
-              style={{
-                backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                borderColor: 'rgba(245, 158, 11, 0.4)',
-                color: '#fbbf24',
-              }}
-              title="Persistent application data stored in Google Cloud Firestore collection"
-            >
-              🔥 Firestore: {project.name}
-            </span>
-            {project.cloud_run_url && (
-              <a
-                href={project.cloud_run_url}
-                target="_blank"
-                rel="noreferrer"
-                className="stat-pill live-pill"
-              >
-                🌐 Live App
-              </a>
-            )}
-          </div>
-        ) : (
-          <span className="no-project-selected">Select or create a project to start coding</span>
-        )}
-      </div>
-
-      <div className="header-right">
-        {project && (
-          <>
-            <a
-              href={project.github_url}
-              target="_blank"
-              rel="noreferrer"
-              className="btn-action"
-              title="View on GitHub"
-            >
-              🐙 GitHub
-            </a>
-            {hasPromptTxt && (
-              <button
-                className="btn-action"
-                onClick={onOpenMasterPrompt}
-                title="View consolidated prompt.txt specification"
-              >
-                📋 Master Prompt
-              </button>
-            )}
-            <button
-              className={`btn-action ${filesOpen ? 'btn-active' : ''}`}
-              onClick={onToggleFiles}
-              title="Toggle Project Files Drawer"
-            >
-              📂 Files ({project.files_count || (project.files_detail ? project.files_detail.length : 0)})
-            </button>
-            <button
-              className="btn-action btn-danger-action"
-              onClick={onOpenDelete}
-              title="Delete Project"
-            >
-              🗑️ Delete
-            </button>
-          </>
-        )}
-        <button className="btn-icon" onClick={onOpenSettings} title="Settings">
-          ⚙️
-        </button>
+      <div className="header-actions">
+        <div className="status-pill">
+          <span className="status-dot"></span>
+          <span className="status-text-full">Connected to Agent</span>
+          <span className="status-text-short">Connected</span>
+        </div>
+        <a
+          href="https://github.com/noam2030/remote-code-agent-output"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nav-btn"
+        >
+          🐙 <span className="nav-btn-text-full">GitHub Central Repo</span>
+          <span className="nav-btn-text-short">GitHub</span>
+        </a>
+        <a
+          href="https://remote-code-agent-702552270447.us-central1.run.app/docs"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nav-btn"
+        >
+          📖 <span className="nav-btn-text-full">API Docs</span>
+          <span className="nav-btn-text-short">Docs</span>
+        </a>
       </div>
     </header>
   )
