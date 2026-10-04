@@ -945,13 +945,33 @@ def get_web_ui_html() -> str:
       border-color: #64748b;
     }
 
-    .terminal-output {
-      padding: 1rem;
+    .terminal-font-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      margin-right: 2px;
+    }
+
+    .terminal-size-indicator {
       font-family: var(--code-font);
-      font-size: 0.82rem;
-      line-height: 1.6;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      padding: 0 4px;
+      min-width: 32px;
+      text-align: center;
+      cursor: pointer;
+    }
+    .terminal-size-indicator:hover {
+      color: var(--text-main);
+    }
+
+    .terminal-output {
+      padding: 1rem 1.25rem;
+      font-family: var(--code-font);
+      font-size: 1.05rem;
+      line-height: 1.7;
       color: #e2e8f0;
-      height: 280px;
+      height: 340px;
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-word;
@@ -1199,6 +1219,11 @@ def get_web_ui_html() -> str:
           </div>
           <div class="terminal-controls">
             <span class="terminal-badge badge-idle" id="streamStatus">IDLE</span>
+            <div class="terminal-font-controls" title="Adjust terminal text size">
+              <button class="terminal-btn" id="btnZoomOutTerminal" title="Decrease font size">A-</button>
+              <span class="terminal-size-indicator" id="terminalSizeIndicator" title="Click to reset font size to 16px">16px</span>
+              <button class="terminal-btn" id="btnZoomInTerminal" title="Increase font size">A+</button>
+            </div>
             <button class="terminal-btn" id="btnClearTerminal">Clear</button>
             <button class="terminal-btn" id="btnCopyTerminal">Copy</button>
           </div>
@@ -1626,6 +1651,37 @@ def get_web_ui_html() -> str:
         promptInput.focus();
       });
     });
+
+    // Terminal Font Size Adjustment
+    const btnZoomInTerminal = document.getElementById('btnZoomInTerminal');
+    const btnZoomOutTerminal = document.getElementById('btnZoomOutTerminal');
+    const terminalSizeIndicator = document.getElementById('terminalSizeIndicator');
+
+    let terminalFontSize = 16;
+    try {
+      const savedSize = localStorage.getItem('terminal_font_size');
+      if (savedSize) terminalFontSize = parseInt(savedSize, 10) || 16;
+    } catch (e) {}
+
+    function applyTerminalFontSize(size) {
+      terminalFontSize = Math.max(12, Math.min(24, size));
+      terminalOutput.style.fontSize = `${terminalFontSize}px`;
+      if (terminalSizeIndicator) terminalSizeIndicator.textContent = `${terminalFontSize}px`;
+      try {
+        localStorage.setItem('terminal_font_size', terminalFontSize.toString());
+      } catch (e) {}
+    }
+    applyTerminalFontSize(terminalFontSize);
+
+    if (btnZoomInTerminal) {
+      btnZoomInTerminal.addEventListener('click', () => applyTerminalFontSize(terminalFontSize + 2));
+    }
+    if (btnZoomOutTerminal) {
+      btnZoomOutTerminal.addEventListener('click', () => applyTerminalFontSize(terminalFontSize - 2));
+    }
+    if (terminalSizeIndicator) {
+      terminalSizeIndicator.addEventListener('click', () => applyTerminalFontSize(16));
+    }
 
     btnClearTerminal.addEventListener('click', () => {
       terminalOutput.textContent = '';
