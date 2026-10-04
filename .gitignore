@@ -32,3 +32,4 @@ uv.lock
 node_modules/
 frontend/dist/
 frontend/node_modules/
+.vercel/

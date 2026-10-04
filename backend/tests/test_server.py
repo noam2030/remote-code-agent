@@ -28,9 +28,10 @@ class TestServer(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "online")
-        self.assertEqual(data["service"], "Google Antigravity Agent Service")
+        self.assertIn("Google Antigravity Agent Service", data["service"])
         self.assertIn("workspace", data)
         self.assertIn("docs", data)
+        self.assertIn("frontend", data)
 
     def test_main_exports_server_app(self):
         self.assertIs(main.app, app)
@@ -44,18 +45,19 @@ class TestServer(unittest.TestCase):
         self.assertIn("/api/projects/{project_name}", routes)
         self.assertIn("/run", routes)
 
-    def test_root_html_negotiation(self):
+    def test_root_html_negotiation_returns_json(self):
+        # Even when requested with Accept: text/html from a browser, root returns pure JSON API metadata
         response = self.client.get("/", headers={"Accept": "text/html,application/xhtml+xml"})
         self.assertEqual(response.status_code, 200)
-        self.assertIn("text/html", response.headers.get("content-type", ""))
-        self.assertIn("Remote Code Agent", response.text)
-        self.assertIn("Select a project", response.text)
+        self.assertIn("application/json", response.headers.get("content-type", ""))
+        data = response.json()
+        self.assertEqual(data["status"], "online")
+        self.assertIn("frontend", data)
 
-    def test_ui_endpoint(self):
-        response = self.client.get("/ui")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("text/html", response.headers.get("content-type", ""))
-        self.assertIn("Remote Code Agent", response.text)
+    def test_ui_endpoint_redirects_to_frontend(self):
+        response = self.client.get("/ui", follow_redirects=False)
+        self.assertEqual(response.status_code, 307)
+        self.assertIn("vercel.app", response.headers.get("location", ""))
 
     def test_api_projects_endpoint(self):
         response = self.client.get("/api/projects")

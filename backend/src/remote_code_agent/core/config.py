@@ -59,3 +59,6 @@ CORS_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+FRONTEND_URL = os.environ.get(
+    "FRONTEND_URL", "https://frontend-mu-puce-72.vercel.app"
+)
