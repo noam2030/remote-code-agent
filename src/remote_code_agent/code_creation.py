@@ -8,7 +8,12 @@ from google.antigravity import Agent, LocalAgentConfig, types
 from google.antigravity.hooks import policy
 
 from remote_code_agent.github_service import derive_project_slug, publish_project_to_github
-from remote_code_agent.project_service import sanitize_project_name, sync_project_from_github
+from remote_code_agent.project_service import (
+    inspect_project_files,
+    record_project_run_tokens,
+    sanitize_project_name,
+    sync_project_from_github,
+)
 
 # Dedicated workspace directory for agent-generated projects
 BASE_WORKSPACE = os.path.abspath(os.environ.get("AGENT_WORKSPACE", "workspace"))
@@ -89,6 +94,11 @@ async def generate_code_stream(
 
     config = get_agent_config(project_dir, app_name=app_name)
 
+    prompt_tokens = 0
+    completion_tokens = 0
+    total_tokens = 0
+    generated_chars = 0
+
     async with Agent(config) as agent:
         response = await agent.chat(prompt)
 
@@ -97,8 +107,37 @@ async def generate_code_stream(
             formatted = format_stream_chunk(chunk)
             if formatted:
                 yield formatted
+            if hasattr(chunk, "text") and chunk.text:
+                generated_chars += len(chunk.text)
 
-    # Automatic GitHub Commit & Direct Push to main in central output repository
+        # Extract token usage metadata from response
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            meta = response.usage_metadata
+            prompt_tokens = getattr(meta, "prompt_token_count", 0) or 0
+            completion_tokens = getattr(meta, "candidates_token_count", 0) or 0
+            total_tokens = getattr(meta, "total_token_count", 0) or (prompt_tokens + completion_tokens)
+
+    if total_tokens == 0:
+        # Fallback estimation based on prompt and generated output characters
+        prompt_tokens = max(len(prompt) // 4, 50)
+        completion_tokens = max(generated_chars // 4, 50)
+        total_tokens = prompt_tokens + completion_tokens
+
+    # Record token usage in project stats
+    updated_stats = record_project_run_tokens(
+        app_name,
+        tokens=total_tokens,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        workspace_dir=BASE_WORKSPACE,
+    )
+    _, total_loc = inspect_project_files(project_dir)
+
+    yield (
+        f"\n\n📊 [Project Stats] Run Tokens: {total_tokens:,} | "
+        f"Cumulative Tokens Spent: {updated_stats.get('total_tokens', 0):,} | "
+        f"Total Project Code: {total_loc:,} LOC\n"
+    )
     target_repo_name = os.environ.get("GITHUB_OUTPUT_REPO", "remote-code-agent-output")
     yield f"\n\n📦 [GitHub] Publishing generated code to project '{app_name}' in {target_repo_name} (branch: main)...\n"
     success, info = publish_project_to_github(project_dir, app_name, prompt=prompt)

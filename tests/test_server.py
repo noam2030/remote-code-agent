@@ -103,6 +103,42 @@ class TestServer(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertIn("Git push failed", response.json()["detail"])
 
+    @patch("remote_code_agent.server.get_project_file_content")
+    def test_api_get_project_file_endpoint_success(self, mock_get_file):
+        mock_get_file.return_value = {
+            "project": "my-app",
+            "path": "main.py",
+            "name": "main.py",
+            "content": "print('hello world')\n",
+            "lines": 1,
+            "size_bytes": 21,
+            "is_binary": False,
+            "extension": ".py",
+        }
+        response = self.client.get("/api/projects/my-app/files/main.py")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["project"], "my-app")
+        self.assertEqual(data["path"], "main.py")
+        self.assertIn("print('hello world')", data["content"])
+        self.assertEqual(data["lines"], 1)
+
+    @patch("remote_code_agent.server.get_project_file_content")
+    def test_api_get_project_file_endpoint_not_found(self, mock_get_file):
+        mock_get_file.side_effect = FileNotFoundError("File not found.")
+        response = self.client.get("/api/projects/my-app/files/missing.py")
+        self.assertEqual(response.status_code, 404)
+
+    @patch("remote_code_agent.server.get_project_file_content")
+    def test_api_get_project_file_endpoint_forbidden(self, mock_get_file):
+        mock_get_file.side_effect = PermissionError("Access denied.")
+        response = self.client.get("/api/projects/my-app/files/%2e%2e/%2e%2e/secret.txt")
+        self.assertEqual(response.status_code, 403)
+
+    def test_routes_configured_file_viewer(self):
+        routes = [route.path for route in app.routes]
+        self.assertIn("/api/projects/{project_name}/files/{file_path:path}", routes)
+
 
 if __name__ == "__main__":
     unittest.main()

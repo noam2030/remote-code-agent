@@ -2,7 +2,12 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 from remote_code_agent.code_creation import BASE_WORKSPACE, generate_code_stream
-from remote_code_agent.project_service import delete_project, get_project_details, list_projects
+from remote_code_agent.project_service import (
+    delete_project,
+    get_project_details,
+    get_project_file_content,
+    list_projects,
+)
 from remote_code_agent.web_ui import get_web_ui_html
 
 app = FastAPI(title="Google Antigravity Agent Service")
@@ -41,11 +46,24 @@ async def api_list_projects():
 
 @app.get("/api/projects/{project_name}")
 async def api_get_project(project_name: str):
-    """Gets details, file tree, and README for a specific project."""
+    """Gets details, file tree, LOC, token stats, and README for a specific project."""
     details = get_project_details(project_name)
     if not details:
         raise HTTPException(status_code=404, detail=f"Project '{project_name}' not found.")
     return details
+
+
+@app.get("/api/projects/{project_name}/files/{file_path:path}")
+async def api_get_project_file(project_name: str, file_path: str):
+    """Retrieves content and metadata for a specific file in a project."""
+    try:
+        return get_project_file_content(project_name, file_path)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.delete("/api/projects/{project_name}")

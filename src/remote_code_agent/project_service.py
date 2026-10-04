@@ -22,6 +22,15 @@ load_env_file()
 BASE_WORKSPACE = os.path.abspath(os.environ.get("AGENT_WORKSPACE", "workspace"))
 os.makedirs(BASE_WORKSPACE, exist_ok=True)
 
+# Common binary file extensions to avoid decoding as text
+BINARY_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svgz", ".webp",
+    ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z",
+    ".pdf", ".exe", ".bin", ".so", ".dylib", ".dll",
+    ".pyc", ".pyo", ".pyd", ".db", ".sqlite", ".sqlite3",
+    ".woff", ".woff2", ".ttf", ".eot", ".otf",
+}
+
 
 def sanitize_project_name(name: str) -> str:
     """Sanitizes project name to a clean lowercase kebab-case slug."""
@@ -32,6 +41,244 @@ def sanitize_project_name(name: str) -> str:
     s = re.sub(r"[^a-z0-9\-]", "", s)
     s = re.sub(r"\-+", "-", s).strip("-")
     return s if s else "agent-app"
+
+
+def is_binary_file(file_path: str) -> bool:
+    """Checks whether a file is binary by extension or content."""
+    _, ext = os.path.splitext(file_path)
+    if ext.lower() in BINARY_EXTENSIONS:
+        return True
+    try:
+        with open(file_path, "rb") as f:
+            chunk = f.read(1024)
+            if b"\x00" in chunk:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def count_file_lines(file_path: str) -> int:
+    """Counts lines in a text file. Returns 0 for binary or unreadable files."""
+    if is_binary_file(file_path):
+        return 0
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            return sum(1 for _ in f)
+    except Exception:
+        return 0
+
+
+def inspect_project_files(project_dir: str) -> tuple[list[dict[str, Any]], int]:
+    """Inspects all files in a project workspace.
+
+    Returns:
+        (files_detail, total_lines_of_code)
+    """
+    files_detail: list[dict[str, Any]] = []
+    total_loc = 0
+
+    if not os.path.isdir(project_dir):
+        return files_detail, total_loc
+
+    for root, dirs, filenames in os.walk(project_dir):
+        # Exclude hidden directories and caches
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in {"__pycache__", "node_modules"}]
+        for fname in sorted(filenames):
+            if fname.startswith("."):
+                continue
+            full_path = os.path.join(root, fname)
+            rel_path = os.path.relpath(full_path, project_dir)
+            _, ext = os.path.splitext(fname)
+
+            is_bin = is_binary_file(full_path)
+            lines = 0 if is_bin else count_file_lines(full_path)
+            size = 0
+            try:
+                size = os.path.getsize(full_path)
+            except Exception:
+                pass
+
+            total_loc += lines
+            files_detail.append({
+                "path": rel_path,
+                "name": fname,
+                "lines": lines,
+                "size_bytes": size,
+                "extension": ext.lower(),
+                "is_binary": is_bin,
+            })
+
+    files_detail.sort(key=lambda x: x["path"])
+    return files_detail, total_loc
+
+
+def get_project_stats_file(project_name: str, workspace_dir: str = BASE_WORKSPACE) -> str:
+    """Returns the path to the project's stats JSON file."""
+    clean_name = sanitize_project_name(project_name)
+    return os.path.join(workspace_dir, clean_name, ".agent_stats.json")
+
+
+def load_project_stats(project_name: str, workspace_dir: str = BASE_WORKSPACE) -> dict[str, Any]:
+    """Loads cumulative token and build statistics for a project."""
+    stats_file = get_project_stats_file(project_name, workspace_dir=workspace_dir)
+    if os.path.exists(stats_file):
+        try:
+            import json
+            with open(stats_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return {
+                        "total_tokens": int(data.get("total_tokens", 0)),
+                        "prompt_tokens": int(data.get("prompt_tokens", 0)),
+                        "completion_tokens": int(data.get("completion_tokens", 0)),
+                        "build_runs": int(data.get("build_runs", 0)),
+                        "last_run_tokens": int(data.get("last_run_tokens", 0)),
+                        "last_updated": data.get("last_updated"),
+                        "is_estimated": bool(data.get("is_estimated", False)),
+                    }
+        except Exception:
+            pass
+
+    # If no stats file exists yet, estimate baseline from project LOC/files if available
+    clean_name = sanitize_project_name(project_name)
+    proj_dir = os.path.join(workspace_dir, clean_name)
+    if os.path.isdir(proj_dir):
+        _, loc = inspect_project_files(proj_dir)
+        if loc > 0:
+            # Baseline estimation: ~18 tokens per LOC for prompt context + code generation
+            est_tokens = max(loc * 18, 500)
+            return {
+                "total_tokens": est_tokens,
+                "prompt_tokens": int(est_tokens * 0.6),
+                "completion_tokens": int(est_tokens * 0.4),
+                "build_runs": 1,
+                "last_run_tokens": est_tokens,
+                "last_updated": None,
+                "is_estimated": True,
+            }
+
+    return {
+        "total_tokens": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "build_runs": 0,
+        "last_run_tokens": 0,
+        "last_updated": None,
+        "is_estimated": False,
+    }
+
+
+def record_project_run_tokens(
+    project_name: str,
+    tokens: int,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    workspace_dir: str = BASE_WORKSPACE,
+) -> dict[str, Any]:
+    """Records and accumulates token usage for a project generation run."""
+    import datetime
+    import json
+
+    clean_name = sanitize_project_name(project_name)
+    proj_dir = os.path.join(workspace_dir, clean_name)
+    os.makedirs(proj_dir, exist_ok=True)
+    stats_file = get_project_stats_file(project_name, workspace_dir=workspace_dir)
+
+    current_stats = load_project_stats(project_name, workspace_dir=workspace_dir)
+    if current_stats.get("is_estimated"):
+        # Replace estimated stats with actual recorded stats
+        new_total = tokens
+        new_prompt = prompt_tokens
+        new_comp = completion_tokens
+        new_runs = 1
+    else:
+        new_total = current_stats.get("total_tokens", 0) + tokens
+        new_prompt = current_stats.get("prompt_tokens", 0) + prompt_tokens
+        new_comp = current_stats.get("completion_tokens", 0) + completion_tokens
+        new_runs = current_stats.get("build_runs", 0) + 1
+
+    updated = {
+        "total_tokens": new_total,
+        "prompt_tokens": new_prompt,
+        "completion_tokens": new_comp,
+        "build_runs": new_runs,
+        "last_run_tokens": tokens,
+        "last_updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "is_estimated": False,
+    }
+
+    try:
+        with open(stats_file, "w", encoding="utf-8") as f:
+            json.dump(updated, f, indent=2)
+    except Exception:
+        pass
+
+    return updated
+
+
+def get_project_file_content(
+    project_name: str,
+    file_path: str,
+    workspace_dir: str = BASE_WORKSPACE,
+) -> dict[str, Any]:
+    """Safely retrieves the content and metadata of a project file.
+
+    Guards against directory traversal attacks.
+    """
+    clean_name = sanitize_project_name(project_name)
+    proj_dir = os.path.realpath(os.path.join(workspace_dir, clean_name))
+
+    # If project workspace is missing files, attempt to sync from GitHub first
+    if not os.path.isdir(proj_dir) or not os.listdir(proj_dir):
+        sync_project_from_github(clean_name, proj_dir)
+
+    if not os.path.isdir(proj_dir):
+        raise FileNotFoundError(f"Project '{clean_name}' does not exist.")
+
+    # Guard against directory traversal
+    norm_path = os.path.normpath(file_path.strip().lstrip("/"))
+    target_path = os.path.realpath(os.path.join(proj_dir, norm_path))
+
+    if not (target_path == proj_dir or target_path.startswith(proj_dir + os.sep)):
+        raise PermissionError("Access denied: invalid file path.")
+
+    if not os.path.isfile(target_path):
+        raise FileNotFoundError(f"File '{file_path}' not found in project '{clean_name}'.")
+
+    size_bytes = os.path.getsize(target_path)
+    is_bin = is_binary_file(target_path)
+    _, ext = os.path.splitext(target_path)
+
+    if is_bin:
+        return {
+            "project": clean_name,
+            "path": norm_path,
+            "name": os.path.basename(target_path),
+            "content": None,
+            "lines": 0,
+            "size_bytes": size_bytes,
+            "is_binary": True,
+            "extension": ext.lower(),
+        }
+
+    try:
+        with open(target_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+            lines = len(content.splitlines())
+    except Exception as e:
+        raise OSError(f"Failed to read file: {e}")
+
+    return {
+        "project": clean_name,
+        "path": norm_path,
+        "name": os.path.basename(target_path),
+        "content": content,
+        "lines": lines,
+        "size_bytes": size_bytes,
+        "is_binary": False,
+        "extension": ext.lower(),
+    }
 
 
 def parse_readme_projects(readme_content: str) -> dict[str, dict[str, str]]:
@@ -155,7 +402,7 @@ def list_remote_projects(
 
 
 def list_local_projects(workspace_dir: str = BASE_WORKSPACE) -> dict[str, dict[str, Any]]:
-    """Discovers project directories inside the local workspace."""
+    """Discovers project directories inside the local workspace with file details, LOC, and token stats."""
     projects: dict[str, dict[str, Any]] = {}
     if not os.path.exists(workspace_dir):
         return projects
@@ -163,23 +410,20 @@ def list_local_projects(workspace_dir: str = BASE_WORKSPACE) -> dict[str, dict[s
     for entry in sorted(os.listdir(workspace_dir)):
         p_dir = os.path.join(workspace_dir, entry)
         if os.path.isdir(p_dir) and not entry.startswith("."):
-            files = []
-            for root, _, filenames in os.walk(p_dir):
-                if ".git" in root:
-                    continue
-                rel_root = os.path.relpath(root, p_dir)
-                for f in filenames:
-                    if f.startswith("."):
-                        continue
-                    rel_path = f if rel_root == "." else os.path.join(rel_root, f)
-                    files.append(rel_path)
+            files_detail, total_loc = inspect_project_files(p_dir)
+            stats = load_project_stats(entry, workspace_dir=workspace_dir)
+            files = [f["path"] for f in files_detail]
 
             projects[entry] = {
                 "name": entry,
                 "is_local": True,
                 "local_path": p_dir,
-                "files": sorted(files),
+                "files": files,
                 "files_count": len(files),
+                "files_detail": files_detail,
+                "lines_of_code": total_loc,
+                "tokens_spent": stats.get("total_tokens", 0),
+                "stats": stats,
             }
     return projects
 
@@ -202,6 +446,10 @@ def list_projects() -> list[dict[str, Any]]:
             "is_local": False,
             "files": [],
             "files_count": 0,
+            "files_detail": [],
+            "lines_of_code": 0,
+            "tokens_spent": 0,
+            "stats": {},
         }
 
     # Overlay local projects
@@ -211,6 +459,10 @@ def list_projects() -> list[dict[str, Any]]:
             merged[name]["local_path"] = data.get("local_path")
             merged[name]["files"] = data.get("files", [])
             merged[name]["files_count"] = data.get("files_count", 0)
+            merged[name]["files_detail"] = data.get("files_detail", [])
+            merged[name]["lines_of_code"] = data.get("lines_of_code", 0)
+            merged[name]["tokens_spent"] = data.get("tokens_spent", 0)
+            merged[name]["stats"] = data.get("stats", {})
         else:
             merged[name] = {
                 "name": name,
@@ -219,8 +471,12 @@ def list_projects() -> list[dict[str, Any]]:
                 "has_remote": False,
                 "is_local": True,
                 "local_path": data.get("local_path"),
-                "files": data.get("files", []) ,
+                "files": data.get("files", []),
                 "files_count": data.get("files_count", 0),
+                "files_detail": data.get("files_detail", []),
+                "lines_of_code": data.get("lines_of_code", 0),
+                "tokens_spent": data.get("tokens_spent", 0),
+                "stats": data.get("stats", {}),
             }
 
     # Return list sorted alphabetically by name
@@ -272,7 +528,7 @@ def sync_project_from_github(
 
 
 def get_project_details(project_name: str) -> dict[str, Any] | None:
-    """Returns detailed information, file tree, and README for a specific project.
+    """Returns detailed information, file tree, LOC, token stats, and README for a specific project.
 
     If the project exists in GitHub but not locally, syncs it to local workspace.
     """
@@ -295,30 +551,26 @@ def get_project_details(project_name: str) -> dict[str, Any] | None:
         "is_local": os.path.isdir(local_dir),
     }
 
-    # Inspect files in local directory
-    files: list[str] = []
+    # Inspect files and stats in local directory
+    files_detail, total_loc = inspect_project_files(local_dir)
+    stats = load_project_stats(clean_name, workspace_dir=BASE_WORKSPACE)
+    files = [f["path"] for f in files_detail]
+
     readme_text = ""
-    if os.path.isdir(local_dir):
-        for root, _, filenames in os.walk(local_dir):
-            if ".git" in root:
-                continue
-            rel_root = os.path.relpath(root, local_dir)
-            for f in filenames:
-                if f.startswith("."):
-                    continue
-                rel_path = f if rel_root == "." else os.path.join(rel_root, f)
-                files.append(rel_path)
+    readme_file = os.path.join(local_dir, "README.md")
+    if os.path.exists(readme_file):
+        try:
+            with open(readme_file, "r", encoding="utf-8") as f:
+                readme_text = f.read()
+        except Exception:
+            pass
 
-        readme_file = os.path.join(local_dir, "README.md")
-        if os.path.exists(readme_file):
-            try:
-                with open(readme_file, "r", encoding="utf-8") as f:
-                    readme_text = f.read()
-            except Exception:
-                pass
-
-    project_info["files"] = sorted(files)
+    project_info["files"] = files
     project_info["files_count"] = len(files)
+    project_info["files_detail"] = files_detail
+    project_info["lines_of_code"] = total_loc
+    project_info["tokens_spent"] = stats.get("total_tokens", 0)
+    project_info["stats"] = stats
     project_info["readme"] = readme_text
     return project_info
 

@@ -374,6 +374,18 @@ def get_web_ui_html() -> str:
       color: var(--text-dim);
     }
 
+    .tag-loc {
+      background: rgba(139, 92, 246, 0.12);
+      color: #c4b5fd;
+      border: 1px solid rgba(139, 92, 246, 0.25);
+    }
+
+    .tag-tokens {
+      background: rgba(245, 158, 11, 0.12);
+      color: #fcd34d;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
     /* Right Content Area */
     .content-area {
       display: flex;
@@ -418,6 +430,38 @@ def get_web_ui_html() -> str:
       display: flex;
       align-items: center;
       gap: 0.5rem;
+    }
+
+    .banner-stats-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      margin-top: 0.35rem;
+    }
+
+    .banner-stat-pill {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.25rem 0.55rem;
+      font-size: 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .banner-stat-pill .stat-icon {
+      font-size: 0.85rem;
+    }
+
+    .banner-stat-pill .stat-label {
+      color: var(--text-muted);
+    }
+
+    .banner-stat-pill .stat-val {
+      color: #fff;
+      font-weight: 600;
     }
 
     .banner-actions {
@@ -492,7 +536,7 @@ def get_web_ui_html() -> str:
       padding: 1rem;
       display: flex;
       flex-direction: column;
-      gap: 0.6rem;
+      gap: 0.75rem;
     }
 
     .files-header {
@@ -505,20 +549,204 @@ def get_web_ui_html() -> str:
 
     .files-list {
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-      max-height: 120px;
+      flex-direction: column;
+      gap: 0.45rem;
+      max-height: 240px;
       overflow-y: auto;
     }
 
-    .file-chip {
+    .file-item-card {
       background: var(--bg-main);
       border: 1px solid var(--border-color);
-      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 0.45rem 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .file-item-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--primary);
+      transform: translateX(2px);
+    }
+
+    .file-item-main {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      overflow: hidden;
+    }
+
+    .file-item-path {
+      font-family: var(--code-font);
+      font-size: 0.8rem;
+      color: var(--text-main);
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .file-item-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .file-pill {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-dim);
+    }
+
+    .file-pill-loc {
+      color: #c4b5fd;
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    .file-item-btn {
+      font-size: 0.72rem;
+      color: #60a5fa;
+      font-weight: 500;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    /* File Viewer Modal */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(3, 7, 18, 0.82);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .file-modal {
+      width: 90vw;
+      max-width: 1050px;
+      height: 82vh;
+      max-height: 880px;
+      background: #0e1526;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
+    }
+
+    .file-modal-header {
+      padding: 0.85rem 1.25rem;
+      background: #111827;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .file-modal-title {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      overflow: hidden;
+    }
+
+    .file-modal-title h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .file-modal-path {
       font-family: var(--code-font);
       font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    .file-modal-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .meta-pill {
+      font-size: 0.72rem;
       padding: 0.2rem 0.5rem;
       border-radius: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+      font-family: var(--code-font);
+    }
+
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+
+    .modal-close-btn:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .file-modal-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      background: #030712;
+      position: relative;
+    }
+
+    .code-container {
+      display: flex;
+      flex: 1;
+      overflow: auto;
+      font-family: var(--code-font);
+      font-size: 0.82rem;
+    }
+
+    .line-numbers {
+      padding: 1rem 0.65rem;
+      text-align: right;
+      color: #4b5563;
+      user-select: none;
+      border-right: 1px solid #1f2937;
+      background: #090d16;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      min-width: 48px;
+    }
+
+    .code-content {
+      padding: 1rem 1.25rem;
+      margin: 0;
+      color: #e2e8f0;
+      line-height: 1.5;
+      white-space: pre;
+      overflow-x: auto;
+      flex: 1;
     }
 
     /* Generator Section */
@@ -852,6 +1080,23 @@ def get_web_ui_html() -> str:
         <div class="banner-title">
           <span class="banner-sub">Target Project</span>
           <h2 class="banner-name" id="bannerProjectName">Select a project</h2>
+          <div class="banner-stats-row" id="bannerStatsRow" style="display: none;">
+            <div class="banner-stat-pill" title="Total Lines of Code">
+              <span class="stat-icon">📝</span>
+              <span class="stat-label">Code:</span>
+              <strong class="stat-val" id="bannerLocVal">0 LOC</strong>
+            </div>
+            <div class="banner-stat-pill" title="Tokens Spent Building Project">
+              <span class="stat-icon">🪙</span>
+              <span class="stat-label">Tokens Spent:</span>
+              <strong class="stat-val" id="bannerTokensVal">0</strong>
+            </div>
+            <div class="banner-stat-pill" title="Total Project Files">
+              <span class="stat-icon">📂</span>
+              <span class="stat-label">Files:</span>
+              <strong class="stat-val" id="bannerFilesVal">0</strong>
+            </div>
+          </div>
         </div>
         <div class="banner-actions">
           <a id="bannerLiveLink" href="#" target="_blank" class="action-btn action-btn-primary" style="display: none;">
@@ -872,7 +1117,7 @@ def get_web_ui_html() -> str:
       <!-- Files Drawer (Toggleable) -->
       <div class="files-panel" id="filesPanel" style="display: none;">
         <div class="files-header">
-          <span>Files in this project</span>
+          <span>Files in this project <span style="font-size: 0.72rem; color: var(--text-dim); font-weight: normal; margin-left: 0.4rem;">(Click to view content)</span></span>
           <span id="filesStatusText" style="color: var(--text-dim); font-size: 0.75rem;">Synced with workspace</span>
         </div>
         <div class="files-list" id="filesList">
@@ -961,11 +1206,47 @@ def get_web_ui_html() -> str:
     </section>
   </main>
 
+  <!-- File Viewer Modal -->
+  <div class="modal-backdrop" id="fileModalBackdrop" style="display: none;">
+    <div class="file-modal" id="fileModal">
+      <div class="file-modal-header">
+        <div class="file-modal-title">
+          <span class="file-modal-icon" style="font-size: 1.1rem;">📄</span>
+          <div style="overflow: hidden;">
+            <h3 id="modalFileName">file.py</h3>
+            <div class="file-modal-path" id="modalFilePath">path/to/file.py</div>
+          </div>
+        </div>
+        <div class="file-modal-meta">
+          <span class="meta-pill" id="modalFileLanguage">CODE</span>
+          <span class="meta-pill" id="modalFileLines">0 lines</span>
+          <span class="meta-pill" id="modalFileSize">0 B</span>
+          <button class="action-btn action-btn-secondary" id="btnCopyFile" style="font-size: 0.75rem; padding: 0.25rem 0.6rem;">📋 Copy</button>
+          <button class="modal-close-btn" id="btnCloseModal" title="Close (Esc)">✕</button>
+        </div>
+      </div>
+      <div class="file-modal-body">
+        <div id="modalLoading" style="display: none; padding: 3rem; text-align: center; color: var(--text-dim); width: 100%;">
+          <span>⏳ Loading file content...</span>
+        </div>
+        <div id="modalError" style="display: none; padding: 2rem; color: #fca5a5; width: 100%;"></div>
+        <div id="modalBinaryNotice" style="display: none; padding: 3rem; text-align: center; color: var(--text-muted); width: 100%;">
+          <p>📦 This is a binary file and cannot be previewed directly as text.</p>
+        </div>
+        <div class="code-container" id="modalCodeContainer" style="display: none;">
+          <div class="line-numbers" id="modalLineNumbers"></div>
+          <pre class="code-content"><code id="modalCodeContent"></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Client JavaScript Logic -->
   <script>
     let projects = [];
     let selectedProject = null;
     let isGenerating = false;
+    let currentModalFileContent = '';
 
     // Elements
     const projectListEl = document.getElementById('projectList');
@@ -981,6 +1262,10 @@ def get_web_ui_html() -> str:
     const bannerLiveLink = document.getElementById('bannerLiveLink');
     const bannerGithubLink = document.getElementById('bannerGithubLink');
     const bannerFileCount = document.getElementById('bannerFileCount');
+    const bannerStatsRow = document.getElementById('bannerStatsRow');
+    const bannerLocVal = document.getElementById('bannerLocVal');
+    const bannerTokensVal = document.getElementById('bannerTokensVal');
+    const bannerFilesVal = document.getElementById('bannerFilesVal');
     const btnToggleFiles = document.getElementById('btnToggleFiles');
     const btnDeleteProject = document.getElementById('btnDeleteProject');
     const filesPanel = document.getElementById('filesPanel');
@@ -997,6 +1282,40 @@ def get_web_ui_html() -> str:
     const btnCopyTerminal = document.getElementById('btnCopyTerminal');
     const successAlert = document.getElementById('successAlert');
     const alertLink = document.getElementById('alertLink');
+
+    // Modal elements
+    const fileModalBackdrop = document.getElementById('fileModalBackdrop');
+    const modalFileName = document.getElementById('modalFileName');
+    const modalFilePath = document.getElementById('modalFilePath');
+    const modalFileLanguage = document.getElementById('modalFileLanguage');
+    const modalFileLines = document.getElementById('modalFileLines');
+    const modalFileSize = document.getElementById('modalFileSize');
+    const btnCopyFile = document.getElementById('btnCopyFile');
+    const btnCloseModal = document.getElementById('btnCloseModal');
+    const modalLoading = document.getElementById('modalLoading');
+    const modalError = document.getElementById('modalError');
+    const modalBinaryNotice = document.getElementById('modalBinaryNotice');
+    const modalCodeContainer = document.getElementById('modalCodeContainer');
+    const modalLineNumbers = document.getElementById('modalLineNumbers');
+    const modalCodeContent = document.getElementById('modalCodeContent');
+
+    function formatBytes(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
 
     // Fetch and render projects
     async function loadProjects(preferredName = null) {
@@ -1031,15 +1350,17 @@ def get_web_ui_html() -> str:
 
       projectListEl.innerHTML = filtered.map(p => {
         const isActive = selectedProject && selectedProject.name === p.name;
+        const loc = p.lines_of_code || 0;
+        const tokens = p.tokens_spent || 0;
         return `
-          <div class="project-card ${isActive ? 'active' : ''}" data-name="${p.name}">
+          <div class="project-card ${isActive ? 'active' : ''}" data-name="${escapeHtml(p.name)}">
             <div class="project-card-header">
               <span class="project-card-title">
-                📁 ${p.name}
+                📁 ${escapeHtml(p.name)}
               </span>
               <div style="display: flex; align-items: center; gap: 0.35rem;">
                 ${isActive ? '<span class="active-tag">Active</span>' : ''}
-                <button class="btn-card-delete" title="Delete project" onclick="event.stopPropagation(); requestDeleteProject('${p.name}')">🗑️</button>
+                <button class="btn-card-delete" title="Delete project" onclick="event.stopPropagation(); requestDeleteProject('${escapeHtml(p.name)}')">🗑️</button>
               </div>
             </div>
             <div class="project-links">
@@ -1053,8 +1374,14 @@ def get_web_ui_html() -> str:
                   🐙 GitHub
                 </a>
               ` : ''}
-              <span class="project-tag tag-files">
+              <span class="project-tag tag-files" title="${p.files_count || 0} files">
                 📄 ${p.files_count || 0} files
+              </span>
+              <span class="project-tag tag-loc" title="${loc.toLocaleString()} lines of code">
+                📝 ${loc.toLocaleString()} LOC
+              </span>
+              <span class="project-tag tag-tokens" title="${tokens.toLocaleString()} tokens spent building">
+                🪙 ${tokens.toLocaleString()}
               </span>
             </div>
           </div>
@@ -1078,6 +1405,11 @@ def get_web_ui_html() -> str:
       noticeTargetName.textContent = p.name;
       footerTargetName.textContent = `${p.name}/`;
 
+      bannerStatsRow.style.display = 'flex';
+      bannerLocVal.textContent = `${(p.lines_of_code || 0).toLocaleString()} LOC`;
+      bannerTokensVal.textContent = (p.tokens_spent || 0).toLocaleString();
+      bannerFilesVal.textContent = (p.files_count || 0);
+
       if (p.cloud_run_url) {
         bannerLiveLink.href = p.cloud_run_url;
         bannerLiveLink.style.display = 'inline-flex';
@@ -1096,28 +1428,140 @@ def get_web_ui_html() -> str:
 
       renderProjectsList();
 
-      // Fetch detailed files for this project
+      // Fetch detailed files and stats for this project
       try {
         const res = await fetch(`/api/projects/${encodeURIComponent(p.name)}`);
         if (res.ok) {
           const details = await res.json();
           p.files = details.files || [];
           p.files_count = details.files_count || 0;
+          p.files_detail = details.files_detail || [];
+          p.lines_of_code = details.lines_of_code || 0;
+          p.tokens_spent = details.tokens_spent || 0;
+          p.stats = details.stats || {};
+
           bannerFileCount.textContent = p.files_count;
-          renderFiles(p.files);
+          bannerFilesVal.textContent = p.files_count;
+          bannerLocVal.textContent = `${p.lines_of_code.toLocaleString()} LOC`;
+          bannerTokensVal.textContent = p.tokens_spent.toLocaleString();
+
+          renderFiles(p.name, p.files_detail);
+          renderProjectsList();
         }
       } catch (e) {
         console.error('Error fetching project details:', e);
       }
     }
 
-    function renderFiles(files) {
-      if (!files || files.length === 0) {
-        filesListEl.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-dim);">No files found in workspace.</span>';
+    function renderFiles(projectName, filesDetail) {
+      if (!filesDetail || filesDetail.length === 0) {
+        filesListEl.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-dim); padding: 0.5rem;">No files found in workspace.</span>';
         return;
       }
-      filesListEl.innerHTML = files.map(f => `<span class="file-chip">📄 ${f}</span>`).join('');
+      filesListEl.innerHTML = filesDetail.map(f => {
+        const path = typeof f === 'string' ? f : f.path;
+        const lines = f.lines !== undefined ? f.lines : 0;
+        const sizeBytes = f.size_bytes || 0;
+        const isBin = f.is_binary || false;
+
+        return `
+          <div class="file-item-card" data-proj="${escapeHtml(projectName)}" data-file="${escapeHtml(path)}">
+            <div class="file-item-main">
+              <span style="font-size: 0.85rem;">${isBin ? '📦' : '📄'}</span>
+              <span class="file-item-path" title="${escapeHtml(path)}">${escapeHtml(path)}</span>
+            </div>
+            <div class="file-item-meta">
+              <span class="file-pill file-pill-loc">${isBin ? 'binary' : lines.toLocaleString() + ' lines'}</span>
+              <span class="file-pill file-pill-size">${formatBytes(sizeBytes)}</span>
+              <span class="file-item-btn">View 👁️</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      filesListEl.querySelectorAll('.file-item-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const proj = card.getAttribute('data-proj');
+          const file = card.getAttribute('data-file');
+          openFileViewer(proj, file);
+        });
+      });
     }
+
+    // File Viewer Modal Logic
+    async function openFileViewer(projectName, filePath) {
+      if (!projectName || !filePath) return;
+
+      fileModalBackdrop.style.display = 'flex';
+      modalFileName.textContent = filePath.split('/').pop();
+      modalFilePath.textContent = `${projectName}/${filePath}`;
+      modalLoading.style.display = 'block';
+      modalError.style.display = 'none';
+      modalBinaryNotice.style.display = 'none';
+      modalCodeContainer.style.display = 'none';
+      btnCopyFile.disabled = true;
+
+      try {
+        const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/files/${encodeURIComponent(filePath)}`);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ detail: 'Failed to read file' }));
+          throw new Error(errData.detail || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        modalLoading.style.display = 'none';
+
+        const ext = data.extension || '';
+        modalFileLanguage.textContent = ext ? ext.replace('.', '').toUpperCase() : 'TEXT';
+        modalFileSize.textContent = formatBytes(data.size_bytes);
+
+        if (data.is_binary) {
+          modalFileLines.textContent = 'Binary';
+          modalBinaryNotice.style.display = 'block';
+          return;
+        }
+
+        modalFileLines.textContent = `${data.lines.toLocaleString()} lines`;
+        currentModalFileContent = data.content || '';
+        btnCopyFile.disabled = false;
+
+        // Render line numbers and code content
+        const linesCount = data.lines || 1;
+        modalLineNumbers.innerHTML = Array.from({ length: linesCount }, (_, i) => i + 1).join('<br>');
+        modalCodeContent.textContent = data.content || '';
+        modalCodeContainer.style.display = 'flex';
+
+      } catch (err) {
+        modalLoading.style.display = 'none';
+        modalError.textContent = `Error loading file: ${err.message}`;
+        modalError.style.display = 'block';
+      }
+    }
+
+    function closeFileViewer() {
+      fileModalBackdrop.style.display = 'none';
+      modalCodeContent.textContent = '';
+      modalLineNumbers.innerHTML = '';
+      currentModalFileContent = '';
+    }
+
+    btnCloseModal.addEventListener('click', closeFileViewer);
+    fileModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === fileModalBackdrop) closeFileViewer();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && fileModalBackdrop.style.display !== 'none') {
+        closeFileViewer();
+      }
+    });
+
+    btnCopyFile.addEventListener('click', () => {
+      if (!currentModalFileContent) return;
+      navigator.clipboard.writeText(currentModalFileContent);
+      const prevText = btnCopyFile.textContent;
+      btnCopyFile.textContent = '✓ Copied!';
+      setTimeout(() => { btnCopyFile.textContent = prevText; }, 1500);
+    });
 
     // Create New Project
     function createNewProject() {
@@ -1221,6 +1665,7 @@ def get_web_ui_html() -> str:
           bannerGithubLink.style.display = 'none';
           btnDeleteProject.style.display = 'none';
           bannerFileCount.textContent = '0';
+          bannerStatsRow.style.display = 'none';
           filesListEl.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-dim);">No files found.</span>';
         }
       } catch (err) {
