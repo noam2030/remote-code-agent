@@ -29,7 +29,7 @@ AGENT_URL="https://remote-code-agent-702552270447.us-central1.run.app/run" ./cha
 
 - **Web Application UI (`GET /`, `GET /ui`)**: Rich, modern single-page dashboard for browsing projects, inspecting project files, viewing live Cloud Run deployments, and creating new projects.
 - **Correlated GitHub Project Targeting**: When a user selects a project, the autonomous agent loads the existing project workspace, generates/edits code directly for that project, and pushes commits straight to `<project_name>/` in the central GitHub repository ([remote-code-agent-output](https://github.com/noam2030/remote-code-agent-output)).
-- **Project Discovery APIs**: REST endpoints (`GET /api/projects`, `GET /api/projects/{project_name}`) for listing available projects with live Cloud Run links, GitHub tree links, and file lists.
+- **Project Management & Deletion**: REST endpoints to discover (`GET /api/projects`, `GET /api/projects/{project_name}`) and delete projects (`DELETE /api/projects/{project_name}`), removing workspace directories and cleaning up GitHub output repository folders and README entries with live confirmation in the UI.
 - **FastAPI Streaming Endpoint (`POST /run`)**: Accepts JSON `{"prompt": "...", "project": "name"}` or raw text body with `?project=` query param, streaming back model response tokens asynchronously using `StreamingResponse(media_type="text/plain")`.
 - **Google Antigravity SDK**: Integrates `LocalAgentConfig` and the `Agent` async context manager for autonomous agent workflows.
 - **Real-Time Process Streaming**: Streams live tool execution notices (`ToolCall`), thoughts, and token deltas chronologically directly from `response.chunks`.

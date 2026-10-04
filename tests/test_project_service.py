@@ -8,11 +8,13 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from remote_code_agent.project_service import (
-    sanitize_project_name,
-    parse_readme_projects,
+    BASE_WORKSPACE,
+    delete_project,
+    get_project_details,
     list_local_projects,
     list_projects,
-    get_project_details,
+    parse_readme_projects,
+    sanitize_project_name,
     sync_project_from_github,
 )
 
@@ -99,6 +101,44 @@ class TestProjectService(unittest.TestCase):
         projects = list_projects()
         names = [p["name"] for p in projects]
         self.assertIn("remote-only-app", names)
+
+    def test_delete_project_local_only(self):
+        test_proj = "test-delete-local-app"
+        proj_dir = os.path.join(BASE_WORKSPACE, test_proj)
+        os.makedirs(proj_dir, exist_ok=True)
+        with open(os.path.join(proj_dir, "app.py"), "w") as f:
+            f.write("print('to be deleted')")
+
+        self.assertTrue(os.path.exists(proj_dir))
+        success, msg = delete_project(test_proj, delete_remote=False)
+        self.assertTrue(success)
+        self.assertFalse(os.path.exists(proj_dir))
+        self.assertIn("deleted from local workspace", msg)
+
+    @patch("subprocess.run")
+    def test_delete_project_remote_mocked(self, mock_run):
+        def mock_subprocess(cmd, **kwargs):
+            m = MagicMock()
+            m.returncode = 0
+            if "clone" in cmd:
+                clone_dest = cmd[-1]
+                p_dir = os.path.join(clone_dest, "mock-delete-app")
+                os.makedirs(p_dir, exist_ok=True)
+                readme_path = os.path.join(clone_dest, "README.md")
+                with open(readme_path, "w") as f:
+                    f.write("# Projects\n- [mock-delete-app](./mock-delete-app/)\n- [other-app](./other-app/)\n")
+            return m
+
+        mock_run.side_effect = mock_subprocess
+
+        test_proj = "mock-delete-app"
+        local_dir = os.path.join(BASE_WORKSPACE, test_proj)
+        os.makedirs(local_dir, exist_ok=True)
+
+        success, msg = delete_project(test_proj, delete_remote=True)
+        self.assertTrue(success)
+        self.assertFalse(os.path.exists(local_dir))
+        self.assertIn("successfully deleted", msg)
 
 
 if __name__ == "__main__":
