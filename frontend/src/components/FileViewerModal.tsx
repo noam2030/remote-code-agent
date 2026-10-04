@@ -21,46 +21,55 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({ file, loading,
   }
 
   const lines = file?.content ? file.content.split('\n') : []
+  const fileName = file?.path ? file.path.split('/').pop() : 'Loading...'
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div className="modal-title-group">
-            <span className="file-icon">📄</span>
-            <div>
-              <h3 className="modal-title">{file?.path || 'Loading file...'}</h3>
-              <p className="modal-subtitle">
-                Project: <strong>{file?.project}</strong> &bull; {file?.lines.toLocaleString()} lines &bull;{' '}
-                {file ? (file.size_bytes / 1024).toFixed(1) : 0} KB
-              </p>
+      <div className="file-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="file-modal-header">
+          <div className="file-modal-title">
+            <span style={{ fontSize: '1.1rem' }}>📄</span>
+            <div style={{ overflow: 'hidden' }}>
+              <h3>{fileName}</h3>
+              <div className="file-modal-path">{file?.path}</div>
             </div>
           </div>
-          <div className="modal-actions">
-            {file && !file.is_binary && file.content && (
-              <button className="btn-secondary btn-sm" onClick={handleCopy}>
-                {copied ? '✅ Copied' : '📋 Copy Content'}
-              </button>
+          <div className="file-modal-meta">
+            {file && (
+              <>
+                <span className="meta-pill">{file.lines} lines</span>
+                <span className="meta-pill">{(file.size_bytes / 1024).toFixed(1)} KB</span>
+                {!file.is_binary && (
+                  <button
+                    className="action-btn action-btn-secondary"
+                    onClick={handleCopy}
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                  >
+                    {copied ? '✅ Copied' : '📋 Copy'}
+                  </button>
+                )}
+              </>
             )}
-            <button className="btn-close" onClick={onClose}>
+            <button className="modal-close-btn" onClick={onClose} title="Close">
               ✕
             </button>
           </div>
         </div>
 
-        <div className="modal-body">
+        <div className="file-modal-body">
           {loading ? (
-            <div className="loading-spinner">Loading file content...</div>
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-dim)', width: '100%' }}>
+              ⏳ Loading file content...
+            </div>
           ) : file?.is_binary ? (
-            <div className="binary-notice">
-              <span className="binary-icon">📦</span>
-              <p>Binary file cannot be displayed in text viewer.</p>
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)', width: '100%' }}>
+              📦 This is a binary file and cannot be previewed directly as text.
             </div>
           ) : (
-            <div className="code-viewer">
+            <div className="code-container">
               <div className="line-numbers">
                 {lines.map((_, i) => (
-                  <span key={i}>{i + 1}</span>
+                  <div key={i}>{i + 1}</div>
                 ))}
               </div>
               <pre className="code-content">
