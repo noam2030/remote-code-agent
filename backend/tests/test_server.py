@@ -3,7 +3,8 @@ from unittest.mock import patch
 import os
 import sys
 
-# Ensure src/ is discoverable even without package installation
+# Ensure src/ and backend root are discoverable
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from fastapi.testclient import TestClient
