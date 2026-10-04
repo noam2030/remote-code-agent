@@ -86,6 +86,23 @@ def resolve_output_repo_full_name(target_repo: str | None = None, env: dict[str,
     return f"{owner}/{target}"
 
 
+def get_authenticated_repo_url(full_repo: str, env: dict[str, str] | None = None) -> str:
+    """Returns an authenticated git remote URL if GH_TOKEN or GITHUB_TOKEN is available."""
+    if env is None:
+        env = get_github_env()
+    token = env.get("GH_TOKEN") or env.get("GITHUB_TOKEN")
+    if token:
+        return f"https://x-access-token:{token}@github.com/{full_repo}.git"
+    return f"https://github.com/{full_repo}.git"
+
+
+def sanitize_git_output(text: str) -> str:
+    """Strips sensitive tokens from git command outputs."""
+    if not text:
+        return ""
+    return re.sub(r"https://[^@]+@", "https://", text)
+
+
 def publish_project_to_github(
     project_dir: str,
     app_name: str,
@@ -131,19 +148,20 @@ def publish_project_to_github(
 
     # Resolve target repository full name (e.g. noam2030/remote-code-agent-output)
     full_repo = resolve_output_repo_full_name(target_repo, env=env)
+    repo_url = get_authenticated_repo_url(full_repo, env=env)
 
     # Use a temporary directory to clone the output repository, branch, and push
     with tempfile.TemporaryDirectory() as tmp_dir:
         repo_dir = os.path.join(tmp_dir, "output-repo")
         clone_res = subprocess.run(
-            ["git", "clone", f"https://github.com/{full_repo}.git", repo_dir],
+            ["git", "clone", repo_url, repo_dir],
             env=env,
             capture_output=True,
             text=True,
         )
 
         if clone_res.returncode != 0:
-            return False, f"Failed to clone repository {full_repo}: {clone_res.stderr.strip()}"
+            return False, f"Failed to clone repository {full_repo}: {sanitize_git_output(clone_res.stderr).strip()}"
 
         # Configure repository-level git user
         subprocess.run(["git", "config", "user.name", "Remote Code Agent"], cwd=repo_dir, env=env, check=True)
@@ -211,7 +229,7 @@ def publish_project_to_github(
             text=True,
         )
         if push_res.returncode != 0:
-            return False, f"git push error: {push_res.stderr.strip()}"
+            return False, f"git push error: {sanitize_git_output(push_res.stderr).strip()}"
 
         project_url = f"https://github.com/{full_repo}/tree/main/{app_name}"
         return True, project_url

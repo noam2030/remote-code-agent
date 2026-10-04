@@ -140,6 +140,14 @@ class TestProjectService(unittest.TestCase):
         self.assertFalse(os.path.exists(local_dir))
         self.assertIn("successfully deleted", msg)
 
+    @patch("remote_code_agent.project_service.check_github_auth")
+    def test_delete_project_remote_unauthenticated(self, mock_auth):
+        mock_auth.return_value = (False, "GitHub authentication missing")
+        test_proj = "remote-unauthed-app"
+        success, msg = delete_project(test_proj, delete_remote=True)
+        self.assertFalse(success)
+        self.assertIn("GitHub authentication required", msg)
+
 
 if __name__ == "__main__":
     unittest.main()
