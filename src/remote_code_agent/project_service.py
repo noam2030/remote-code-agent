@@ -9,8 +9,12 @@ from typing import Any
 
 from remote_code_agent.config import GITHUB_OUTPUT_REPO, load_env_file
 from remote_code_agent.github_service import (
+    check_github_auth,
+    ensure_git_config,
+    get_authenticated_repo_url,
     get_github_env,
     resolve_output_repo_full_name,
+    sanitize_git_output,
 )
 
 load_env_file()
@@ -234,10 +238,11 @@ def sync_project_from_github(
     """
     env = get_github_env()
     full_repo = resolve_output_repo_full_name(target_repo, env=env)
+    repo_url = get_authenticated_repo_url(full_repo, env=env)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         res = subprocess.run(
-            ["git", "clone", "--depth", "1", f"https://github.com/{full_repo}.git", tmp_dir],
+            ["git", "clone", "--depth", "1", repo_url, tmp_dir],
             env=env,
             capture_output=True,
             text=True,
@@ -344,20 +349,29 @@ def delete_project(
         return True, f"Project '{clean_name}' deleted from local workspace."
 
     env = get_github_env()
+    is_authed, auth_msg = check_github_auth(env)
+    if not is_authed:
+        if local_existed:
+            return True, f"Project '{clean_name}' deleted locally, but GitHub authentication failed: {auth_msg}"
+        return False, f"GitHub authentication required to delete remote project: {auth_msg}"
+
+    ensure_git_config(env)
     full_repo = resolve_output_repo_full_name(target_repo, env=env)
+    repo_url = get_authenticated_repo_url(full_repo, env=env)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         repo_dir = os.path.join(tmp_dir, "output-repo")
         clone_res = subprocess.run(
-            ["git", "clone", "--depth", "1", f"https://github.com/{full_repo}.git", repo_dir],
+            ["git", "clone", "--depth", "1", repo_url, repo_dir],
             env=env,
             capture_output=True,
             text=True,
         )
         if clone_res.returncode != 0:
+            err_msg = sanitize_git_output(clone_res.stderr).strip()
             if local_existed:
-                return True, f"Project '{clean_name}' deleted locally, but could not connect to GitHub: {clone_res.stderr.strip()}"
-            return False, f"Failed to connect to GitHub repository: {clone_res.stderr.strip()}"
+                return True, f"Project '{clean_name}' deleted locally, but could not connect to GitHub: {err_msg}"
+            return False, f"Failed to connect to GitHub repository: {err_msg}"
 
         proj_path = os.path.join(repo_dir, clean_name)
         remote_existed = os.path.isdir(proj_path)
@@ -412,7 +426,8 @@ def delete_project(
         )
 
         if push_res.returncode != 0:
-            return False, f"Failed to push deletion to GitHub: {push_res.stderr.strip()}"
+            err_msg = sanitize_git_output(push_res.stderr).strip()
+            return False, f"Failed to push deletion to GitHub: {err_msg}"
 
         return True, f"Project '{clean_name}' successfully deleted locally and from GitHub ({full_repo})."
 
