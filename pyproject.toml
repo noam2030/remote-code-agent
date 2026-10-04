@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "remote-code-agent"
+version = "0.3.0"
+description = "Remote Code Agent Monorepo"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "google-antigravity",
+    "pydantic",
+]
+
+[project.scripts]
+remote-code-agent = "remote_code_agent.main:main"
+
+[tool.setuptools.packages.find]
+where = ["backend/src"]
