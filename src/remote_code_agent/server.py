@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 from remote_code_agent.code_creation import BASE_WORKSPACE, generate_code_stream
-from remote_code_agent.project_service import get_project_details, list_projects
+from remote_code_agent.project_service import delete_project, get_project_details, list_projects
 from remote_code_agent.web_ui import get_web_ui_html
 
 app = FastAPI(title="Google Antigravity Agent Service")
@@ -46,6 +46,18 @@ async def api_get_project(project_name: str):
     if not details:
         raise HTTPException(status_code=404, detail=f"Project '{project_name}' not found.")
     return details
+
+
+@app.delete("/api/projects/{project_name}")
+async def api_delete_project(
+    project_name: str,
+    delete_remote: bool = Query(True, description="Whether to also delete the project directory from GitHub"),
+):
+    """Deletes a project from the local workspace and optionally from GitHub."""
+    success, message = delete_project(project_name, delete_remote=delete_remote)
+    if not success:
+        raise HTTPException(status_code=500, detail=message)
+    return {"status": "success", "project": project_name, "message": message}
 
 
 @app.post("/run")

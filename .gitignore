@@ -28,3 +28,4 @@ workspace/
 
 .DS_Store
 .local/
+uv.lock

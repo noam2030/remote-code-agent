@@ -86,6 +86,23 @@ class TestServer(unittest.TestCase):
         self.assertIn("Project: hello-world-from-2052", response.text)
         self.assertIn("Prompt: Add healthcheck", response.text)
 
+    @patch("remote_code_agent.server.delete_project")
+    def test_delete_project_endpoint(self, mock_delete):
+        mock_delete.return_value = (True, "Project 'test-app' deleted successfully.")
+        response = self.client.delete("/api/projects/test-app")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(data["project"], "test-app")
+        self.assertIn("deleted successfully", data["message"])
+
+    @patch("remote_code_agent.server.delete_project")
+    def test_delete_project_endpoint_failure(self, mock_delete):
+        mock_delete.return_value = (False, "Git push failed.")
+        response = self.client.delete("/api/projects/failed-app")
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("Git push failed", response.json()["detail"])
+
 
 if __name__ == "__main__":
     unittest.main()

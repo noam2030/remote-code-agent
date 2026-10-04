@@ -316,3 +316,103 @@ def get_project_details(project_name: str) -> dict[str, Any] | None:
     project_info["files_count"] = len(files)
     project_info["readme"] = readme_text
     return project_info
+
+
+def delete_project(
+    project_name: str,
+    delete_remote: bool = True,
+    target_repo: str | None = None,
+) -> tuple[bool, str]:
+    """Deletes a project locally and optionally from the central GitHub repository.
+
+    1. Removes local project directory from BASE_WORKSPACE if it exists.
+    2. If delete_remote=True:
+       - Clones the central repository to a temp directory.
+       - Removes the project directory with git rm -rf.
+       - Strips references to project_name from root README.md.
+       - Commits and pushes the deletion directly to main.
+    Returns (success, message).
+    """
+    clean_name = sanitize_project_name(project_name)
+    local_dir = os.path.join(BASE_WORKSPACE, clean_name)
+
+    local_existed = os.path.exists(local_dir)
+    if local_existed:
+        shutil.rmtree(local_dir, ignore_errors=True)
+
+    if not delete_remote:
+        return True, f"Project '{clean_name}' deleted from local workspace."
+
+    env = get_github_env()
+    full_repo = resolve_output_repo_full_name(target_repo, env=env)
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        repo_dir = os.path.join(tmp_dir, "output-repo")
+        clone_res = subprocess.run(
+            ["git", "clone", "--depth", "1", f"https://github.com/{full_repo}.git", repo_dir],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if clone_res.returncode != 0:
+            if local_existed:
+                return True, f"Project '{clean_name}' deleted locally, but could not connect to GitHub: {clone_res.stderr.strip()}"
+            return False, f"Failed to connect to GitHub repository: {clone_res.stderr.strip()}"
+
+        proj_path = os.path.join(repo_dir, clean_name)
+        remote_existed = os.path.isdir(proj_path)
+
+        # Update root README.md to remove project line
+        root_readme = os.path.join(repo_dir, "README.md")
+        readme_changed = False
+        if os.path.exists(root_readme):
+            with open(root_readme, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            new_lines = []
+            for line in content.splitlines():
+                if f"[{clean_name}]" in line or f"./{clean_name}/" in line:
+                    readme_changed = True
+                    continue
+                new_lines.append(line)
+
+            if readme_changed:
+                with open(root_readme, "w", encoding="utf-8") as f:
+                    f.write("\n".join(new_lines) + "\n")
+
+        if not remote_existed and not readme_changed:
+            if local_existed:
+                return True, f"Project '{clean_name}' deleted from local workspace (was not present on GitHub)."
+            return True, f"Project '{clean_name}' does not exist locally or on GitHub."
+
+        if remote_existed:
+            subprocess.run(["git", "rm", "-rf", clean_name], cwd=repo_dir, env=env, check=False)
+
+        if readme_changed:
+            subprocess.run(["git", "add", "README.md"], cwd=repo_dir, env=env, check=False)
+
+        # Configure git user
+        subprocess.run(["git", "config", "user.name", "Remote Code Agent"], cwd=repo_dir, env=env, check=True)
+        subprocess.run(["git", "config", "user.email", "agent@remote-code-agent.local"], cwd=repo_dir, env=env, check=True)
+
+        commit_res = subprocess.run(
+            ["git", "commit", "-m", f"chore(delete): remove project {clean_name}"],
+            cwd=repo_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        push_res = subprocess.run(
+            ["git", "push", "origin", "main"],
+            cwd=repo_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        if push_res.returncode != 0:
+            return False, f"Failed to push deletion to GitHub: {push_res.stderr.strip()}"
+
+        return True, f"Project '{clean_name}' successfully deleted locally and from GitHub ({full_repo})."
+
