@@ -968,10 +968,10 @@ def get_web_ui_html() -> str:
     .terminal-output {
       padding: 1rem 1.25rem;
       font-family: var(--code-font);
-      font-size: 1.05rem;
-      line-height: 1.7;
+      font-size: 1.2rem;
+      line-height: 1.75;
       color: #e2e8f0;
-      height: 340px;
+      height: 380px;
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-word;
@@ -1226,7 +1226,7 @@ def get_web_ui_html() -> str:
             <span class="terminal-badge badge-idle" id="streamStatus">IDLE</span>
             <div class="terminal-font-controls" title="Adjust terminal text size">
               <button class="terminal-btn" id="btnZoomOutTerminal" title="Decrease font size">A-</button>
-              <span class="terminal-size-indicator" id="terminalSizeIndicator" title="Click to reset font size to 16px">16px</span>
+              <span class="terminal-size-indicator" id="terminalSizeIndicator" title="Click to reset font size to 19px">19px</span>
               <button class="terminal-btn" id="btnZoomInTerminal" title="Increase font size">A+</button>
             </div>
             <button class="terminal-btn" id="btnClearTerminal">Clear</button>
@@ -1667,14 +1667,21 @@ def get_web_ui_html() -> str:
     const btnZoomOutTerminal = document.getElementById('btnZoomOutTerminal');
     const terminalSizeIndicator = document.getElementById('terminalSizeIndicator');
 
-    let terminalFontSize = 16;
+    const DEFAULT_TERMINAL_FONT_SIZE = 19;
+    let terminalFontSize = DEFAULT_TERMINAL_FONT_SIZE;
     try {
       const savedSize = localStorage.getItem('terminal_font_size');
-      if (savedSize) terminalFontSize = parseInt(savedSize, 10) || 16;
+      const parsedSize = savedSize ? parseInt(savedSize, 10) : null;
+      if (parsedSize && parsedSize > 16) {
+        terminalFontSize = parsedSize;
+      } else {
+        terminalFontSize = DEFAULT_TERMINAL_FONT_SIZE;
+        localStorage.setItem('terminal_font_size', DEFAULT_TERMINAL_FONT_SIZE.toString());
+      }
     } catch (e) {}
 
     function applyTerminalFontSize(size) {
-      terminalFontSize = Math.max(12, Math.min(24, size));
+      terminalFontSize = Math.max(12, Math.min(32, size));
       terminalOutput.style.fontSize = `${terminalFontSize}px`;
       if (terminalSizeIndicator) terminalSizeIndicator.textContent = `${terminalFontSize}px`;
       try {
@@ -1690,7 +1697,7 @@ def get_web_ui_html() -> str:
       btnZoomOutTerminal.addEventListener('click', () => applyTerminalFontSize(terminalFontSize - 2));
     }
     if (terminalSizeIndicator) {
-      terminalSizeIndicator.addEventListener('click', () => applyTerminalFontSize(16));
+      terminalSizeIndicator.addEventListener('click', () => applyTerminalFontSize(DEFAULT_TERMINAL_FONT_SIZE));
     }
 
     btnClearTerminal.addEventListener('click', () => {

@@ -6,9 +6,9 @@ interface TerminalStreamProps {
   onClear: () => void
 }
 
-const DEFAULT_FONT_SIZE = 16
-const MIN_FONT_SIZE = 12
-const MAX_FONT_SIZE = 24
+const DEFAULT_FONT_SIZE = 19
+const MIN_FONT_SIZE = 13
+const MAX_FONT_SIZE = 32
 
 export const TerminalStream: React.FC<TerminalStreamProps> = ({
   logs,
@@ -21,7 +21,13 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
   const [fontSize, setFontSize] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('terminal_font_size')
-      return saved ? parseInt(saved, 10) || DEFAULT_FONT_SIZE : DEFAULT_FONT_SIZE
+      const parsed = saved ? parseInt(saved, 10) : null
+      // Automatically upgrade users from older smaller defaults (<= 16px) to the new bigger default
+      if (!parsed || parsed <= 16) {
+        localStorage.setItem('terminal_font_size', DEFAULT_FONT_SIZE.toString())
+        return DEFAULT_FONT_SIZE
+      }
+      return parsed
     } catch {
       return DEFAULT_FONT_SIZE
     }
@@ -97,7 +103,7 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
             <span
               className="font-size-label"
               onClick={handleResetZoom}
-              title="Click to reset font size to 16px"
+              title={`Click to reset font size to ${DEFAULT_FONT_SIZE}px`}
               style={{ cursor: 'pointer' }}
             >
               {fontSize}px
@@ -137,7 +143,7 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
         {logs ? (
           <pre
             className="terminal-text"
-            style={{ fontSize: `${fontSize}px`, lineHeight: 1.7 }}
+            style={{ fontSize: `${fontSize}px`, lineHeight: 1.75 }}
           >
             <code>{logs}</code>
             <div ref={terminalEndRef} />
