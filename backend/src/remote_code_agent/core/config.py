@@ -12,7 +12,8 @@ def load_env_file(dotenv_path: str | Path | None = None) -> None:
     if dotenv_path is None:
         candidates = [
             Path.cwd() / ".env",
-            Path(__file__).resolve().parent.parent.parent / ".env",
+            Path(__file__).resolve().parent.parent.parent.parent.parent / ".env",
+            Path(__file__).resolve().parent.parent.parent.parent / ".env",
         ]
         for candidate in candidates:
             if candidate.is_file():
@@ -45,4 +46,11 @@ GH_TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
 AGENT_WORKSPACE = os.environ.get("AGENT_WORKSPACE", "workspace")
 GITHUB_OUTPUT_REPO = os.environ.get("GITHUB_OUTPUT_REPO", "remote-code-agent-output")
 PORT = int(os.environ.get("PORT", 8080))
-
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ORIGINS",
+        "*,http://localhost:3000,http://localhost:5173,http://localhost:8080",
+    ).split(",")
+    if origin.strip()
+]

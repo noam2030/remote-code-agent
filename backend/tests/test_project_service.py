@@ -88,7 +88,7 @@ class TestProjectService(unittest.TestCase):
             self.assertTrue(success)
             self.assertTrue(os.path.exists(os.path.join(target_dir, "main.py")))
 
-    @patch("remote_code_agent.project_service.list_remote_projects")
+    @patch("remote_code_agent.services.project_service.list_remote_projects")
     def test_list_projects_combines_remote_and_local(self, mock_remote):
         mock_remote.return_value = {
             "remote-only-app": {
@@ -140,7 +140,7 @@ class TestProjectService(unittest.TestCase):
         self.assertFalse(os.path.exists(local_dir))
         self.assertIn("successfully deleted", msg)
 
-    @patch("remote_code_agent.project_service.check_github_auth")
+    @patch("remote_code_agent.services.project_service.check_github_auth")
     def test_delete_project_remote_unauthenticated(self, mock_auth):
         mock_auth.return_value = (False, "GitHub authentication missing")
         test_proj = "remote-unauthed-app"

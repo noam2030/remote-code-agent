@@ -1,8 +1,13 @@
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 
-from remote_code_agent.code_creation import BASE_WORKSPACE, generate_code_stream
-from remote_code_agent.project_service import (
+from remote_code_agent.core.config import (
+    CORS_ORIGINS,
+    PORT,
+)
+from remote_code_agent.services.code_creation import BASE_WORKSPACE, generate_code_stream
+from remote_code_agent.services.project_service import (
     delete_project,
     get_project_details,
     get_project_file_content,
@@ -10,22 +15,38 @@ from remote_code_agent.project_service import (
 )
 from remote_code_agent.web_ui import get_web_ui_html
 
-app = FastAPI(title="Google Antigravity Agent Service")
+app = FastAPI(
+    title="Google Antigravity Agent Service",
+    description="Autonomous code generation backend with Google Cloud Run & Vercel support",
+    version="0.3.0",
+)
+
+# Enable CORS for cross-origin frontend deployments (e.g. Vercel, localhost)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
 async def root(request: Request, format: str | None = Query(None)):
+    """Root endpoint: serves JSON service metadata or HTML dashboard if requested by browser."""
     accept = request.headers.get("accept", "")
-    # Serve Web Application UI if requested by browser or explicit format=html
     if format == "html" or ("text/html" in accept and "application/json" not in accept):
         return HTMLResponse(content=get_web_ui_html())
 
     return {
         "status": "online",
         "service": "Google Antigravity Agent Service",
+        "version": "0.3.0",
         "docs": "/docs",
+        "api": "/api",
         "ui": "/ui",
         "workspace": BASE_WORKSPACE,
+        "cors_enabled": True,
         "github_publishing": "enabled (direct push to main in remote-code-agent-output)",
         "output_repository": "remote-code-agent-output",
         "output_branch": "main",
@@ -34,8 +55,18 @@ async def root(request: Request, format: str | None = Query(None)):
 
 @app.get("/ui", response_class=HTMLResponse)
 async def ui():
-    """Direct route for Web Application dashboard."""
+    """Direct route for fallback Web Application dashboard."""
     return HTMLResponse(content=get_web_ui_html())
+
+
+@app.get("/api/health")
+async def api_health():
+    """Health check endpoint for container orchestrators and load balancers."""
+    return {
+        "status": "healthy",
+        "service": "remote-code-agent-backend",
+        "version": "0.3.0",
+    }
 
 
 @app.get("/api/projects")
@@ -78,7 +109,28 @@ async def api_delete_project(
     return {"status": "success", "project": project_name, "message": message}
 
 
+# Backward-compatible direct /generate and /run routes
+@app.get("/generate")
+@app.get("/api/generate")
+async def generate_legacy_get(
+    prompt: str = Query(..., description="Prompt describing the application to generate"),
+    project_name: str | None = Query(
+        None, description="Optional target project name to create or update"
+    ),
+):
+    """Streaming endpoint for autonomous code generation (GET)."""
+    return StreamingResponse(
+        generate_code_stream(prompt, project_name=project_name),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @app.post("/run")
+@app.post("/api/generate")
 async def run(
     request: Request,
     project: str | None = Query(None),

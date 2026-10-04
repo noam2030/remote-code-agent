@@ -150,7 +150,7 @@ class TestPromptService(unittest.IsolatedAsyncioTestCase):
     async def test_update_project_master_prompt_e2e(self):
         # Test using deterministic fallback synthesizer to ensure fast, reliable test execution
         with patch(
-            "remote_code_agent.prompt_service.synthesize_master_prompt_with_ai",
+            "remote_code_agent.services.prompt_service.synthesize_master_prompt_with_ai",
             side_effect=lambda existing, new_p, app: synthesize_prompts_fallback(existing, new_p, app),
         ):
             # 1. Initial prompt creation

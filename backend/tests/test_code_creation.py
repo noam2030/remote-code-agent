@@ -84,9 +84,9 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             async def __aexit__(self, exc_type, exc_val, exc_tb):
                 pass
 
-        with patch("remote_code_agent.code_creation.update_project_master_prompt", mock_update), \
-             patch("remote_code_agent.code_creation.Agent", MockAgentCM), \
-             patch("remote_code_agent.code_creation.publish_project_to_github", return_value=(True, "https://github.com/test")):
+        with patch("remote_code_agent.services.code_creation.update_project_master_prompt", mock_update), \
+             patch("remote_code_agent.services.code_creation.Agent", MockAgentCM), \
+             patch("remote_code_agent.services.code_creation.publish_project_to_github", return_value=(True, "https://github.com/test")):
 
             chunks = []
             async for chunk in generate_code_stream("Build a weather app", project_name="weather-test"):

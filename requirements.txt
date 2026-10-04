@@ -1,4 +1,1 @@
-fastapi
-uvicorn
-google-antigravity
--e .
+-r backend/requirements.txt

@@ -3,15 +3,16 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "remote-code-agent"
-version = "0.1.0"
-description = "Google Antigravity Agent Service on Cloud Run"
+name = "remote-code-agent-backend"
+version = "0.3.0"
+description = "Remote Code Agent Backend Service"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi",
     "uvicorn",
     "google-antigravity",
+    "pydantic",
 ]
 
 [project.scripts]
