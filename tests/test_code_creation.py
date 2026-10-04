@@ -18,7 +18,7 @@ import remote_code_agent.code_generator as code_generator
 from remote_code_agent.github_service import derive_project_slug
 
 
-class TestCodeCreation(unittest.TestCase):
+class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
     def test_format_thought_chunk(self):
         chunk = types.Thought(step_index=0, text="Analyzing user requirements")
         result = format_stream_chunk(chunk)
@@ -58,6 +58,44 @@ class TestCodeCreation(unittest.TestCase):
     def test_code_generator_alias(self):
         self.assertIs(code_generator.generate_code_stream, generate_code_stream)
         self.assertIs(code_generator.create_code_stream, create_code_stream)
+
+    async def test_generate_code_stream_updates_prompt_txt(self):
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_update = AsyncMock()
+
+        class MockAgentCM:
+            def __init__(self, config):
+                pass
+            async def __aenter__(self):
+                mock_agent = AsyncMock()
+                mock_resp = MagicMock()
+                mock_meta = MagicMock()
+                mock_meta.prompt_token_count = 50
+                mock_meta.candidates_token_count = 50
+                mock_meta.total_token_count = 100
+                mock_resp.usage_metadata = mock_meta
+                async def empty_chunks():
+                    if False:
+                        yield None
+                mock_resp.chunks = empty_chunks()
+                mock_agent.chat.return_value = mock_resp
+                return mock_agent
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        with patch("remote_code_agent.code_creation.update_project_master_prompt", mock_update), \
+             patch("remote_code_agent.code_creation.Agent", MockAgentCM), \
+             patch("remote_code_agent.code_creation.publish_project_to_github", return_value=(True, "https://github.com/test")):
+
+            chunks = []
+            async for chunk in generate_code_stream("Build a weather app", project_name="weather-test"):
+                chunks.append(chunk)
+
+            mock_update.assert_awaited_once()
+            output = "".join(chunks)
+            self.assertIn("Consolidating master prompt specification in prompt.txt", output)
+            self.assertIn("Master prompt specification updated in prompt.txt", output)
 
 
 if __name__ == "__main__":

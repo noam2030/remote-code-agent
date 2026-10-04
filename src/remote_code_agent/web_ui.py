@@ -1105,6 +1105,9 @@ def get_web_ui_html() -> str:
           <a id="bannerGithubLink" href="#" target="_blank" class="action-btn action-btn-secondary" style="display: none;">
             🐙 View on GitHub
           </a>
+          <button id="btnViewMasterPrompt" class="action-btn action-btn-secondary" style="display: none;" title="View prompt.txt master specification">
+            📋 Master Prompt
+          </button>
           <button id="btnToggleFiles" class="action-btn action-btn-secondary">
             📂 Project Files (<span id="bannerFileCount">0</span>)
           </button>
@@ -1267,6 +1270,7 @@ def get_web_ui_html() -> str:
     const bannerTokensVal = document.getElementById('bannerTokensVal');
     const bannerFilesVal = document.getElementById('bannerFilesVal');
     const btnToggleFiles = document.getElementById('btnToggleFiles');
+    const btnViewMasterPrompt = document.getElementById('btnViewMasterPrompt');
     const btnDeleteProject = document.getElementById('btnDeleteProject');
     const filesPanel = document.getElementById('filesPanel');
     const filesListEl = document.getElementById('filesList');
@@ -1425,6 +1429,7 @@ def get_web_ui_html() -> str:
       }
 
       btnDeleteProject.style.display = 'inline-flex';
+      btnViewMasterPrompt.style.display = 'none';
 
       renderProjectsList();
 
@@ -1444,6 +1449,9 @@ def get_web_ui_html() -> str:
           bannerFilesVal.textContent = p.files_count;
           bannerLocVal.textContent = `${p.lines_of_code.toLocaleString()} LOC`;
           bannerTokensVal.textContent = p.tokens_spent.toLocaleString();
+
+          const hasPrompt = (p.files && p.files.includes('prompt.txt')) || (p.files_detail && p.files_detail.some(f => f.path === 'prompt.txt'));
+          btnViewMasterPrompt.style.display = hasPrompt ? 'inline-flex' : 'none';
 
           renderFiles(p.name, p.files_detail);
           renderProjectsList();
@@ -1607,6 +1615,9 @@ def get_web_ui_html() -> str:
 
     btnToggleFiles.addEventListener('click', () => {
       filesPanel.style.display = filesPanel.style.display === 'none' ? 'flex' : 'none';
+    });
+    btnViewMasterPrompt.addEventListener('click', () => {
+      if (selectedProject) openFileViewer(selectedProject.name, 'prompt.txt');
     });
 
     document.querySelectorAll('.prompt-chip').forEach(chip => {
