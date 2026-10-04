@@ -41,6 +41,17 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="project-badge">Project: {project.name}</span>
             <span className="stat-pill">{project.lines_of_code.toLocaleString()} LOC</span>
             <span className="stat-pill">{project.tokens_spent.toLocaleString()} Tokens</span>
+            <span
+              className="stat-pill firestore-pill"
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                borderColor: 'rgba(245, 158, 11, 0.4)',
+                color: '#fbbf24',
+              }}
+              title="Persistent application data stored in Google Cloud Firestore collection"
+            >
+              🔥 Firestore: {project.name}
+            </span>
             {project.cloud_run_url && (
               <a
                 href={project.cloud_run_url}

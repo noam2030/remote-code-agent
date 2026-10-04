@@ -45,6 +45,11 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GH_TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
 AGENT_WORKSPACE = os.environ.get("AGENT_WORKSPACE", "workspace")
 GITHUB_OUTPUT_REPO = os.environ.get("GITHUB_OUTPUT_REPO", "remote-code-agent-output")
+GCP_OUTPUT_PROJECT_ID = (
+    os.environ.get("GCP_OUTPUT_PROJECT_ID")
+    or os.environ.get("GCP_PROJECT_ID")
+    or "remote-code-agent-output-9182"
+)
 PORT = int(os.environ.get("PORT", 8080))
 CORS_ORIGINS = [
     origin.strip()

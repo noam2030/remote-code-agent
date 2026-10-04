@@ -48,12 +48,16 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         self.assertIn(test_dir, config.workspaces)
         self.assertIn("Google Cloud Run", config.system_instructions)
         self.assertIn("$PORT", config.system_instructions)
+        self.assertIn("Google Cloud Firestore", config.system_instructions)
+        self.assertIn("collection", config.system_instructions)
 
     def test_agent_config_with_app_name(self):
         test_dir = os.path.join(BASE_WORKSPACE, "test-unit-custom")
         config = get_agent_config(test_dir, app_name="custom-project-name")
         self.assertIn("custom-project-name", config.system_instructions)
         self.assertIn("Google Cloud Run", config.system_instructions)
+        self.assertIn("Google Cloud Firestore", config.system_instructions)
+        self.assertIn("remote-code-agent-output-9182", config.system_instructions)
 
     def test_code_generator_alias(self):
         self.assertIs(code_generator.generate_code_stream, generate_code_stream)
