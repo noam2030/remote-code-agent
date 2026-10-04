@@ -14,6 +14,7 @@ from remote_code_agent.project_service import (
     sanitize_project_name,
     sync_project_from_github,
 )
+from remote_code_agent.prompt_service import update_project_master_prompt
 
 # Dedicated workspace directory for agent-generated projects
 BASE_WORKSPACE = os.path.abspath(os.environ.get("AGENT_WORKSPACE", "workspace"))
@@ -91,6 +92,14 @@ async def generate_code_stream(
                 yield f"📥 [Project: {app_name}] Synced existing codebase from GitHub repository.\n"
         except Exception:
             pass
+
+    # Update and re-summarize canonical prompt.txt specification
+    yield f"📋 [Specification] Consolidating master prompt specification in prompt.txt...\n"
+    try:
+        await update_project_master_prompt(project_dir, app_name, prompt)
+        yield f"✅ [Specification] Master prompt specification updated in prompt.txt\n\n"
+    except Exception as e:
+        yield f"⚠️ [Specification Notice] Could not update prompt.txt: {e}\n\n"
 
     config = get_agent_config(project_dir, app_name=app_name)
 

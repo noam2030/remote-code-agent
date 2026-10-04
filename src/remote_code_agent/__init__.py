@@ -21,6 +21,12 @@ from remote_code_agent.project_service import (
     sanitize_project_name,
     sync_project_from_github,
 )
+from remote_code_agent.prompt_service import (
+    get_project_prompt_path,
+    read_project_prompt,
+    update_project_master_prompt,
+    write_project_prompt,
+)
 from remote_code_agent.web_ui import get_web_ui_html
 from remote_code_agent.server import app
 
@@ -43,6 +49,10 @@ __all__ = [
     "delete_project",
     "sanitize_project_name",
     "sync_project_from_github",
+    "get_project_prompt_path",
+    "read_project_prompt",
+    "write_project_prompt",
+    "update_project_master_prompt",
     "get_web_ui_html",
     "__version__",
 ]
