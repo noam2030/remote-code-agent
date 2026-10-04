@@ -46,8 +46,9 @@ body {
 
 /* Header */
 header.app-header {
-  background-color: rgba(17, 24, 39, 0.85);
+  background-color: rgba(17, 24, 39, 0.95);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
   padding: 0.85rem 1.5rem;
   display: flex;
@@ -57,12 +58,18 @@ header.app-header {
   top: 0;
   z-index: 50;
   height: 61px;
+  min-height: 61px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
 }
 
 .brand-logo {
@@ -80,22 +87,35 @@ header.app-header {
   flex-shrink: 0;
 }
 
+.brand-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .brand-text h1 {
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.brand-text p {
+.brand-text p,
+.brand-subtitle {
   font-size: 0.75rem;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-shrink: 0;
 }
 
 .status-pill {
@@ -109,6 +129,7 @@ header.app-header {
   padding: 0.25rem 0.65rem;
   border-radius: 9999px;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .status-dot {
@@ -145,6 +166,64 @@ header.app-header {
   border-color: #4b5563;
 }
 
+@media (min-width: 769px) {
+  .status-text-short,
+  .nav-btn-text-short {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  header.app-header {
+    padding: 0.5rem 0.85rem;
+    height: 56px;
+    min-height: 56px;
+  }
+
+  .brand {
+    gap: 0.5rem;
+  }
+
+  .brand-logo {
+    width: 28px;
+    height: 28px;
+    font-size: 1rem;
+  }
+
+  .brand-text h1 {
+    font-size: 0.95rem;
+  }
+
+  .brand-subtitle,
+  .brand-text p {
+    display: none !important; /* Hide long subtitle completely on mobile so it never overflows into scrolling content */
+  }
+
+  .header-actions {
+    gap: 0.4rem;
+  }
+
+  .status-pill {
+    padding: 0.2rem 0.45rem;
+    font-size: 0.7rem;
+  }
+
+  .nav-btn {
+    padding: 0.25rem 0.45rem;
+    font-size: 0.72rem;
+  }
+
+  .status-text-full,
+  .nav-btn-text-full {
+    display: none;
+  }
+
+  .status-text-short,
+  .nav-btn-text-short {
+    display: inline;
+  }
+}
+
 /* Main Container Grid */
 main.main-grid {
   flex: 1;
@@ -159,6 +238,11 @@ main.main-grid {
     grid-template-columns: 1fr;
     height: auto;
     overflow: visible;
+  }
+
+  .content-area {
+    padding: 1rem 0.75rem;
+    gap: 1rem;
   }
 }
 
