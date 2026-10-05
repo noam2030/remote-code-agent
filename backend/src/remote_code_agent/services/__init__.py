@@ -5,6 +5,11 @@ from remote_code_agent.services.code_creation import (
     format_stream_chunk,
     generate_code_stream,
     get_agent_config,
+    get_info_retrieval_agent_config,
+)
+from remote_code_agent.services.intent_service import (
+    detect_project_from_prompt,
+    is_info_retrieval_request,
 )
 from remote_code_agent.services.github_service import (
     check_github_auth,
@@ -40,6 +45,9 @@ __all__ = [
     "format_stream_chunk",
     "generate_code_stream",
     "get_agent_config",
+    "get_info_retrieval_agent_config",
+    "is_info_retrieval_request",
+    "detect_project_from_prompt",
     "check_github_auth",
     "derive_project_slug",
     "get_github_env",

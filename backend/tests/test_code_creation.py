@@ -11,6 +11,7 @@ from remote_code_agent.code_creation import (
     BASE_WORKSPACE,
     format_stream_chunk,
     get_agent_config,
+    get_info_retrieval_agent_config,
     generate_code_stream,
     create_code_stream,
 )
@@ -100,7 +101,61 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             output = "".join(chunks)
             self.assertIn("Consolidating master prompt specification in prompt.txt", output)
             self.assertIn("Master prompt specification updated in prompt.txt", output)
+            self.assertIn("Successfully pushed code directly to main", output)
+
+    def test_info_retrieval_agent_config(self):
+        test_dir = os.path.join(BASE_WORKSPACE, "test-info-dir")
+        config = get_info_retrieval_agent_config(test_dir, app_name="test-info-app")
+        self.assertIn("test-info-app", config.system_instructions)
+        self.assertIn("Do NOT create, write, modify, or delete any files", config.system_instructions)
+        self.assertIn("Do NOT write code to disk", config.system_instructions)
+        self.assertIn(test_dir, config.workspaces)
+
+    async def test_generate_code_stream_info_retrieval_mode_no_github_publish(self):
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_update = AsyncMock()
+        mock_publish = MagicMock(return_value=(True, "https://github.com/test"))
+
+        class MockAgentCM:
+            def __init__(self, config):
+                self.config = config
+            async def __aenter__(self):
+                mock_agent = AsyncMock()
+                mock_resp = MagicMock()
+                mock_meta = MagicMock()
+                mock_meta.prompt_token_count = 20
+                mock_meta.candidates_token_count = 30
+                mock_meta.total_token_count = 50
+                mock_resp.usage_metadata = mock_meta
+                async def text_chunks():
+                    yield types.Text(step_index=0, text="This project is a FastAPI service.")
+                mock_resp.chunks = text_chunks()
+                mock_agent.chat.return_value = mock_resp
+                return mock_agent
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        with patch("remote_code_agent.services.code_creation.update_project_master_prompt", mock_update), \
+             patch("remote_code_agent.services.code_creation.Agent", MockAgentCM), \
+             patch("remote_code_agent.services.code_creation.publish_project_to_github", mock_publish):
+
+            chunks = []
+            async for chunk in generate_code_stream("What does this project do?", project_name="weather-test"):
+                chunks.append(chunk)
+
+            # Assert prompt.txt is NOT updated during info retrieval
+            mock_update.assert_not_called()
+            # Assert GitHub publish is NOT called during info retrieval
+            mock_publish.assert_not_called()
+
+            output = "".join(chunks)
+            self.assertIn("Information Retrieval", output)
+            self.assertIn("This project is a FastAPI service.", output)
+            self.assertIn("No code changes were made or published to GitHub", output)
+            self.assertNotIn("Publishing generated code to project", output)
 
 
 if __name__ == "__main__":
     unittest.main()
+
