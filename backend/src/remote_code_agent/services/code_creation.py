@@ -15,6 +15,10 @@ from remote_code_agent.project_service import (
     sync_project_from_github,
 )
 from remote_code_agent.prompt_service import update_project_master_prompt
+from remote_code_agent.services.intent_service import (
+    detect_project_from_prompt,
+    is_info_retrieval_request,
+)
 
 # Dedicated workspace directory for agent-generated projects
 BASE_WORKSPACE = os.path.abspath(os.environ.get("AGENT_WORKSPACE", "workspace"))
@@ -72,25 +76,74 @@ def get_agent_config(project_dir: str, app_name: str | None = None) -> google.an
     )
 
 
+def get_info_retrieval_agent_config(
+    project_dir: str,
+    app_name: str | None = None,
+) -> google.antigravity.LocalAgentConfig:
+    """Creates a read-only LocalAgentConfig for information retrieval and codebase inspection."""
+    target_name = app_name or os.path.basename(project_dir)
+    return google.antigravity.LocalAgentConfig(
+        system_instructions=(
+            f"You are an expert software engineer and code analyst inspecting the project '{target_name}'. "
+            "The user is asking an informational query to inspect files, understand the architecture, or answer questions. "
+            "CRITICAL CONSTRAINTS:\n"
+            "- Do NOT create, write, modify, or delete any files or directories in the workspace.\n"
+            "- Do NOT write code to disk or execute commands that alter the repository.\n"
+            "- Read and inspect existing workspace files as needed to answer the user's question accurately.\n"
+            "- Provide a direct, thorough, and well-structured answer in your response text in the console."
+        ),
+        workspaces=[project_dir],
+        policies=[policy.allow_all()],
+    )
+
+
 async def generate_code_stream(
     prompt: str,
     project_name: str | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Autonomous code creation workflow.
+    """Autonomous code creation and inspection workflow.
 
-    1. Determines target project: uses project_name if provided, or derives slug from prompt.
-    2. Ensures isolated workspace directory exists for this project.
-    3. Syncs existing project codebase from GitHub if available and directory is empty.
-    4. Initializes and configures the Google Antigravity agent.
-    5. Runs the agent with the user prompt, streaming thoughts, tool calls, and text.
-    6. Automatically commits and publishes the generated project to GitHub in <project_name>/.
+    1. Classifies user intent (information retrieval vs. code creation/modification).
+    2. Determines target project: uses project_name if provided, detects from prompt, or derives slug.
+    3. Ensures isolated workspace directory exists for this project.
+    4. Syncs existing project codebase from GitHub if available and directory is empty.
+    5. If info retrieval:
+       - Runs read-only agent to inspect files and answer the question.
+       - Does NOT update prompt.txt.
+       - Does NOT publish to GitHub.
+       - Protects workspace against any accidental alterations.
+       - Replies directly in the console stream.
+    6. If code creation:
+       - Consolidates prompt.txt specification.
+       - Runs code generation agent to implement requested changes.
+       - Automatically commits and publishes the generated project to GitHub main.
     """
+    is_info = is_info_retrieval_request(prompt)
+
     if project_name and project_name.strip():
         app_name = sanitize_project_name(project_name.strip())
         yield f"🎯 [Project Target] Working on project: '{app_name}'\n"
     else:
-        app_name = derive_project_slug(prompt)
-        yield f"🎯 [Project Target] Derived project name: '{app_name}'\n"
+        existing_projects = [
+            d
+            for d in os.listdir(BASE_WORKSPACE)
+            if os.path.isdir(os.path.join(BASE_WORKSPACE, d)) and not d.startswith(".")
+        ]
+        detected = detect_project_from_prompt(prompt, existing_projects)
+        if detected:
+            app_name = detected
+            yield f"🎯 [Project Target] Detected project from prompt: '{app_name}'\n"
+        elif is_info and existing_projects:
+            # Default to the most recently modified project for informational inspection
+            existing_projects.sort(
+                key=lambda p: os.path.getmtime(os.path.join(BASE_WORKSPACE, p)),
+                reverse=True,
+            )
+            app_name = existing_projects[0]
+            yield f"🎯 [Project Target] Inspecting active project: '{app_name}'\n"
+        else:
+            app_name = derive_project_slug(prompt)
+            yield f"🎯 [Project Target] Derived project name: '{app_name}'\n"
 
     project_dir = os.path.join(BASE_WORKSPACE, app_name)
     os.makedirs(project_dir, exist_ok=True)
@@ -105,15 +158,25 @@ async def generate_code_stream(
         except Exception:
             pass
 
-    # Update and re-summarize canonical prompt.txt specification
-    yield f"📋 [Specification] Consolidating master prompt specification in prompt.txt...\n"
-    try:
-        await update_project_master_prompt(project_dir, app_name, prompt)
-        yield f"✅ [Specification] Master prompt specification updated in prompt.txt\n\n"
-    except Exception as e:
-        yield f"⚠️ [Specification Notice] Could not update prompt.txt: {e}\n\n"
+    if is_info:
+        yield "ℹ️ [Mode] Information Retrieval (read-only query — no code will be written or published to GitHub)\n\n"
+        config = get_info_retrieval_agent_config(project_dir, app_name=app_name)
+    else:
+        # Update and re-summarize canonical prompt.txt specification
+        yield "📋 [Specification] Consolidating master prompt specification in prompt.txt...\n"
+        try:
+            await update_project_master_prompt(project_dir, app_name, prompt)
+            yield "✅ [Specification] Master prompt specification updated in prompt.txt\n\n"
+        except Exception as e:
+            yield f"⚠️ [Specification Notice] Could not update prompt.txt: {e}\n\n"
+        config = get_agent_config(project_dir, app_name=app_name)
 
-    config = get_agent_config(project_dir, app_name=app_name)
+    # Snapshot pre-run files for workspace protection in info retrieval mode
+    pre_run_files = set()
+    if is_info and os.path.isdir(project_dir):
+        for root, _, files in os.walk(project_dir):
+            for f in files:
+                pre_run_files.add(os.path.join(root, f))
 
     prompt_tokens = 0
     completion_tokens = 0
@@ -138,6 +201,17 @@ async def generate_code_stream(
             completion_tokens = getattr(meta, "candidates_token_count", 0) or 0
             total_tokens = getattr(meta, "total_token_count", 0) or (prompt_tokens + completion_tokens)
 
+    # Clean up any files inadvertently created during info retrieval
+    if is_info and os.path.isdir(project_dir):
+        for root, _, files in os.walk(project_dir):
+            for f in files:
+                full = os.path.join(root, f)
+                if full not in pre_run_files:
+                    try:
+                        os.remove(full)
+                    except Exception:
+                        pass
+
     if total_tokens == 0:
         # Fallback estimation based on prompt and generated output characters
         prompt_tokens = max(len(prompt) // 4, 50)
@@ -159,18 +233,22 @@ async def generate_code_stream(
         f"Cumulative Tokens Spent: {updated_stats.get('total_tokens', 0):,} | "
         f"Total Project Code: {total_loc:,} LOC\n"
     )
-    target_repo_name = os.environ.get("GITHUB_OUTPUT_REPO", "remote-code-agent-output")
-    yield f"\n\n📦 [GitHub] Publishing generated code to project '{app_name}' in {target_repo_name} (branch: main)...\n"
-    success, info = publish_project_to_github(project_dir, app_name, prompt=prompt)
-    if success:
-        yield (
-            f"\n🎉 [GitHub] Successfully pushed code directly to main in {target_repo_name}!\n"
-            f"🔗 Repository: {info}\n"
-            f"☁️ [Cloud Run] GitHub Actions is automatically building and deploying the app to Google Cloud.\n"
-            f"📂 Local Path: {project_dir}\n"
-        )
+
+    if is_info:
+        yield "\n✅ [Info Retrieval] Query completed. No code changes were made or published to GitHub.\n"
     else:
-        yield f"\n⚠️ [GitHub Notice] {info}\n"
+        target_repo_name = os.environ.get("GITHUB_OUTPUT_REPO", "remote-code-agent-output")
+        yield f"\n\n📦 [GitHub] Publishing generated code to project '{app_name}' in {target_repo_name} (branch: main)...\n"
+        success, info = publish_project_to_github(project_dir, app_name, prompt=prompt)
+        if success:
+            yield (
+                f"\n🎉 [GitHub] Successfully pushed code directly to main in {target_repo_name}!\n"
+                f"🔗 Repository: {info}\n"
+                f"☁️ [Cloud Run] GitHub Actions is automatically building and deploying the app to Google Cloud.\n"
+                f"📂 Local Path: {project_dir}\n"
+            )
+        else:
+            yield f"\n⚠️ [GitHub Notice] {info}\n"
 
 
 # Alias for flexibility
