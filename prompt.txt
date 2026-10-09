@@ -3,3 +3,4 @@
 3. merge
 4. i am getting an error 'Failed to fetch' when i try to generate and push to github
 5. confirm
+6. merge
