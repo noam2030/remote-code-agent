@@ -38,7 +38,7 @@ Build outputs are generated in the `dist/` directory.
 3. Configure **Root Directory**: `frontend`.
 4. Framework Preset: **Vite**.
 5. Add Environment Variable:
-   - `VITE_API_URL`: `https://remote-code-agent-702552270447.us-central1.run.app` (or your Google Cloud Run backend URL).
+   - `VITE_API_URL`: `https://remote-code-agent-289332143182.us-central1.run.app` (or your Google Cloud Run backend URL).
 6. Click **Deploy**.
 
 ### Option 2: Vercel CLI
@@ -57,5 +57,5 @@ Follow the prompts:
 
 Then deploy to production:
 ```bash
-vercel --prod --build-env VITE_API_URL="https://remote-code-agent-702552270447.us-central1.run.app"
+vercel --prod --build-env VITE_API_URL="https://remote-code-agent-289332143182.us-central1.run.app"
 ```

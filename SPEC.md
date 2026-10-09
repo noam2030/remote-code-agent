@@ -107,7 +107,8 @@ The application relies on the following environment variables:
 - `GCP_OUTPUT_PROJECT_ID`: Target Google Cloud Project ID (`ai-learning-499409`).
 - `PORT`: HTTP port for backend server (default: `8080`).
 - `CORS_ORIGINS`: Comma-separated list of allowed origins.
-- `FRONTEND_URL`: URL of the deployed frontend application.
+- `FRONTEND_URL`: URL of the deployed frontend application (`https://remote-code-agent-ui.vercel.app`).
+- `VITE_API_URL`: Frontend environment variable defining the backend API URL (production: `https://remote-code-agent-289332143182.us-central1.run.app`).
 
 ## 11. Testing
 - Automated unit and integration tests are placed in `backend/tests/`.
@@ -126,7 +127,9 @@ The application relies on the following environment variables:
 - **Target Project**: `ai-learning-499409`.
 - **Region**: `us-central1`.
 - **Production Service Name**: `remote-code-agent`.
+- **Production Backend URL**: `https://remote-code-agent-289332143182.us-central1.run.app`.
 - **Staging Service Name**: `remote-code-agent-staging`.
+- **Frontend Hosting**: Vercel (`https://remote-code-agent-ui.vercel.app`), configured with `VITE_API_URL=https://remote-code-agent-289332143182.us-central1.run.app`.
 - **Container Build**: Docker build from root `Dockerfile` using Python 3.11-slim, installing Git, GitHub CLI, and dependencies.
 - **Port**: Container listens on port `8080`.
 - **Access**: Unauthenticated invocations enabled (`--allow-unauthenticated`).

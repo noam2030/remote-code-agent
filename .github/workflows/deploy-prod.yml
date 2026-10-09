@@ -46,6 +46,7 @@ jobs:
       - name: Deploy to Cloud Run (Production)
         run: |
           gcloud run deploy remote-code-agent \
+            --project ${{ vars.GCP_PROJECT_ID || 'ai-learning-499409' }} \
             --source . \
             --region ${{ vars.GCP_REGION || 'us-central1' }} \
             --allow-unauthenticated \

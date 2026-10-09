@@ -1,6 +1,10 @@
 import React from 'react'
+import { getBackendUrl } from '../services/api'
 
 export const Header: React.FC = () => {
+  const backendBase = getBackendUrl() || 'https://remote-code-agent-289332143182.us-central1.run.app'
+  const docsUrl = `${backendBase}/docs`
+
   return (
     <header className="app-header">
       <div className="brand">
@@ -28,7 +32,7 @@ export const Header: React.FC = () => {
           <span className="nav-btn-text-short">GitHub</span>
         </a>
         <a
-          href="https://remote-code-agent-702552270447.us-central1.run.app/docs"
+          href={docsUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="nav-btn"
