@@ -58,7 +58,8 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         self.assertIn("custom-project-name", config.system_instructions)
         self.assertIn("Google Cloud Run", config.system_instructions)
         self.assertIn("Google Cloud Firestore", config.system_instructions)
-        self.assertIn("remote-code-agent-output-9182", config.system_instructions)
+        self.assertIn("ai-learning-499409", config.system_instructions)
+        self.assertIn("noam-projects2", config.system_instructions)
 
     def test_code_generator_alias(self):
         self.assertIs(code_generator.generate_code_stream, generate_code_stream)
@@ -101,7 +102,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             output = "".join(chunks)
             self.assertIn("Consolidating master prompt specification in prompt.txt", output)
             self.assertIn("Master prompt specification updated in prompt.txt", output)
-            self.assertIn("Successfully pushed code directly to main", output)
+            self.assertIn("Successfully pushed code to GitHub repository", output)
 
     def test_info_retrieval_agent_config(self):
         test_dir = os.path.join(BASE_WORKSPACE, "test-info-dir")

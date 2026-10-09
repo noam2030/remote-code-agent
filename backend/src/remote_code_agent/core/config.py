@@ -48,8 +48,10 @@ GITHUB_OUTPUT_REPO = os.environ.get("GITHUB_OUTPUT_REPO", "remote-code-agent-out
 GCP_OUTPUT_PROJECT_ID = (
     os.environ.get("GCP_OUTPUT_PROJECT_ID")
     or os.environ.get("GCP_PROJECT_ID")
-    or "remote-code-agent-output-9182"
+    or "ai-learning-499409"
 )
+VERCEL_SCOPE = os.environ.get("VERCEL_SCOPE", "noam-projects2")
+VERCEL_TEAM = os.environ.get("VERCEL_TEAM", "noam-projects2")
 PORT = int(os.environ.get("PORT", 8080))
 CORS_ORIGINS = [
     origin.strip()

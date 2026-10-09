@@ -74,6 +74,16 @@ def ensure_git_config(env: dict[str, str] | None = None):
     subprocess.run(["gh", "auth", "setup-git"], check=False, capture_output=True, env=env)
 
 
+def get_github_owner(env: dict[str, str] | None = None) -> str:
+    """Returns the authenticated GitHub username or defaults to 'noam2030'."""
+    if env is None:
+        env = get_github_env()
+    owner_res = subprocess.run(["gh", "api", "user", "-q", ".login"], env=env, capture_output=True, text=True)
+    if owner_res.returncode == 0 and owner_res.stdout.strip():
+        return owner_res.stdout.strip()
+    return "noam2030"
+
+
 def resolve_output_repo_full_name(target_repo: str | None = None, env: dict[str, str] | None = None) -> str:
     """Resolves full GitHub repository slug (e.g. 'owner/remote-code-agent-output')."""
     if env is None:
@@ -81,8 +91,7 @@ def resolve_output_repo_full_name(target_repo: str | None = None, env: dict[str,
     target = target_repo or os.environ.get("GITHUB_OUTPUT_REPO") or GITHUB_OUTPUT_REPO or "remote-code-agent-output"
     if "/" in target:
         return target
-    owner_res = subprocess.run(["gh", "api", "user", "-q", ".login"], env=env, capture_output=True, text=True)
-    owner = owner_res.stdout.strip() if owner_res.returncode == 0 and owner_res.stdout.strip() else "noam2030"
+    owner = get_github_owner(env)
     return f"{owner}/{target}"
 
 
@@ -103,6 +112,71 @@ def sanitize_git_output(text: str) -> str:
     return re.sub(r"https://[^@]+@", "https://", text)
 
 
+def push_to_dedicated_project_repo(
+    project_dir: str,
+    app_name: str,
+    env: dict[str, str],
+) -> tuple[bool, str]:
+    """Publishes project files directly to a dedicated GitHub repository named after the project (<owner>/<app_name>)."""
+    owner = get_github_owner(env)
+    project_repo = f"{owner}/{app_name}"
+
+    # Check if repository exists on GitHub; create if missing
+    view_res = subprocess.run(["gh", "repo", "view", project_repo], env=env, capture_output=True, text=True)
+    if view_res.returncode != 0:
+        create_res = subprocess.run(
+            [
+                "gh",
+                "repo",
+                "create",
+                project_repo,
+                "--public",
+                "--description",
+                f"{app_name} built autonomously by Antigravity CLI on Cloud",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if create_res.returncode != 0:
+            pass
+
+    repo_url = get_authenticated_repo_url(project_repo, env=env)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        repo_dir = os.path.join(tmp_dir, "project-repo")
+        clone_res = subprocess.run(["git", "clone", repo_url, repo_dir], env=env, capture_output=True, text=True)
+        if clone_res.returncode != 0:
+            os.makedirs(repo_dir, exist_ok=True)
+            subprocess.run(["git", "init"], cwd=repo_dir, env=env, check=True)
+            subprocess.run(["git", "remote", "add", "origin", repo_url], cwd=repo_dir, env=env, check=True)
+
+        subprocess.run(["git", "config", "user.name", "Remote Code Agent"], cwd=repo_dir, env=env, check=True)
+        subprocess.run(["git", "config", "user.email", "agent@remote-code-agent.local"], cwd=repo_dir, env=env, check=True)
+        subprocess.run(["git", "checkout", "-B", "main"], cwd=repo_dir, env=env, check=True)
+
+        # Copy generated files to root of the repo
+        for item in os.listdir(project_dir):
+            if item == ".git":
+                continue
+            src = os.path.join(project_dir, item)
+            dst = os.path.join(repo_dir, item)
+            if os.path.isdir(src):
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+            else:
+                shutil.copy2(src, dst)
+
+        subprocess.run(["git", "add", "."], cwd=repo_dir, env=env, check=True)
+        commit_msg = f"feat: build {app_name} autonomously with Antigravity CLI on Cloud"
+        subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_dir, env=env, check=True)
+        push_res = subprocess.run(["git", "push", "-u", "origin", "main"], cwd=repo_dir, env=env, capture_output=True, text=True)
+        if push_res.returncode != 0:
+            push_res = subprocess.run(["git", "push", "--force", "-u", "origin", "main"], cwd=repo_dir, env=env, capture_output=True, text=True)
+            if push_res.returncode != 0:
+                return False, f"git push to {project_repo} failed: {sanitize_git_output(push_res.stderr).strip()}"
+
+        return True, f"https://github.com/{project_repo}"
+
+
 def publish_project_to_github(
     project_dir: str,
     app_name: str,
@@ -113,13 +187,9 @@ def publish_project_to_github(
 
     1. Checks if project_dir contains files.
     2. Validates GitHub authentication.
-    3. Clones the central output repository.
-    4. Initializes 'main' branch if repository is empty.
-    5. Pulls latest 'main' to stay in sync.
-    6. Copies generated files into '<app_name>/' in the repository.
-    7. Updates the repository README index.
-    8. Commits and pushes directly to 'main' on GitHub (no pull request).
-    9. Returns the direct URL to the published project on main.
+    3. If target_repo is not specified, attempts to push directly to dedicated repo <owner>/<app_name>.
+    4. Simultaneously updates central output repository (<owner>/remote-code-agent-output).
+    5. Returns the primary repository URL.
     """
     # Check if there are generated files (excluding hidden files)
     has_files = False
@@ -144,13 +214,22 @@ def publish_project_to_github(
     readme_path = os.path.join(project_dir, "README.md")
     if not os.path.exists(readme_path):
         with open(readme_path, "w", encoding="utf-8") as f:
-            f.write(f"# {app_name}\n\nGenerated autonomously by Google Antigravity Remote Code Agent.\n")
+            f.write(f"# {app_name}\n\nGenerated autonomously by Antigravity CLI on Cloud.\n")
 
-    # Resolve target repository full name (e.g. noam2030/remote-code-agent-output)
+    # If target_repo is not explicitly specified, try dedicated repo first
+    dedicated_url = None
+    if not target_repo:
+        try:
+            ded_ok, ded_info = push_to_dedicated_project_repo(project_dir, app_name, env=env)
+            if ded_ok:
+                dedicated_url = ded_info
+        except Exception:
+            pass
+
+    # Update the central output repository
     full_repo = resolve_output_repo_full_name(target_repo, env=env)
     repo_url = get_authenticated_repo_url(full_repo, env=env)
 
-    # Use a temporary directory to clone the output repository, branch, and push
     with tempfile.TemporaryDirectory() as tmp_dir:
         repo_dir = os.path.join(tmp_dir, "output-repo")
         clone_res = subprocess.run(
@@ -161,6 +240,8 @@ def publish_project_to_github(
         )
 
         if clone_res.returncode != 0:
+            if dedicated_url:
+                return True, dedicated_url
             return False, f"Failed to clone repository {full_repo}: {sanitize_git_output(clone_res.stderr).strip()}"
 
         # Configure repository-level git user
@@ -229,7 +310,12 @@ def publish_project_to_github(
             text=True,
         )
         if push_res.returncode != 0:
+            if dedicated_url:
+                return True, dedicated_url
             return False, f"git push error: {sanitize_git_output(push_res.stderr).strip()}"
+
+        if dedicated_url:
+            return True, dedicated_url
 
         project_url = f"https://github.com/{full_repo}/tree/main/{app_name}"
         return True, project_url
