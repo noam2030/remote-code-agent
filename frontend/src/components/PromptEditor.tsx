@@ -21,8 +21,8 @@ const CHIPS = [
     prompt: 'Create comprehensive automated unit tests in tests/ directory',
   },
   {
-    label: '🐳 Cloud Run Setup',
-    prompt: 'Add a Dockerfile and configure for Google Cloud Run on port $PORT',
+    label: '🚀 Deploy Workflows',
+    prompt: 'Deploy this application with GitHub Actions workflows for Google Cloud project ai-learning and Vercel noam-projects2',
   },
 ]
 
@@ -34,7 +34,6 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
   const [prompt, setPrompt] = useState('')
 
   const targetName = selectedProject?.name || 'select a project'
-  const destinationFolder = selectedProject?.name ? `${selectedProject.name}/` : 'workspace/'
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -52,7 +51,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
   return (
     <div className="generator-card">
       <div className="card-header-row">
-        <h3 className="card-title">✨ Autonomous Code Generation</h3>
+        <h3 className="card-title">⚡ Antigravity CLI on Cloud</h3>
         <div className="correlation-notice">
           <span>📌</span>
           <span>
@@ -86,7 +85,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
 
       <div className="generator-footer">
         <div className="target-reminder">
-          Changes will be committed directly to <strong>{destinationFolder}</strong> on GitHub branch{' '}
+          Changes will be committed directly to GitHub repository <strong>{targetName}</strong> on branch{' '}
           <strong>main</strong>.
         </div>
         <button

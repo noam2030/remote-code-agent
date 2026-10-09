@@ -49,27 +49,34 @@ def get_agent_config(project_dir: str, app_name: str | None = None) -> google.an
     target_name = app_name or os.path.basename(project_dir)
     return google.antigravity.LocalAgentConfig(
         system_instructions=(
-            f"You are an expert autonomous software engineer working on the project '{target_name}'. "
-            "Write complete, production-ready code inside your current project workspace. "
-            "Examine any existing files in the workspace and implement the requested changes or new features cleanly. "
-            "Every project will be automatically built and deployed live to Google Cloud Run in the GCP project 'remote-code-agent-output-9182'. "
-            "Ensure applications provide an interactive web interface or HTTP API (e.g. FastAPI, Flask, Streamlit, or HTML/JS) "
+            f"You are Antigravity CLI on cloud. Act exactly as Antigravity CLI does. "
+            f"When asked to build an application, write the code, push it to my GitHub repository with the name of the project ('{target_name}') and, "
+            f"if asked to deploy, add GitHub workflow to deploy. "
+            "You can use ai-learning Google Cloud project and Vercel noam-projects2.\n\n"
+            f"Operational Guidelines for Project '{target_name}':\n"
+            "- Write complete, production-ready code inside your current project workspace.\n"
+            "- Examine any existing files in the workspace and implement the requested changes or new features cleanly.\n"
+            "- Ensure applications provide an interactive web interface or HTTP API (e.g. FastAPI, Flask, Streamlit, Express, React, or HTML/JS) "
             "or a Dockerfile listening on host 0.0.0.0 and port defined by $PORT (default 8080).\n\n"
-            "CRITICAL PERSISTENCE REQUIREMENT:\n"
-            f"Any persistent data for this app (such as database records, user input, state, items, notes, tasks) "
-            f"MUST be stored in Google Cloud Firestore as a collection in Google Cloud (project 'remote-code-agent-output-9182'). "
+            "DEPLOYMENT WORKFLOWS:\n"
+            "- If asked to deploy, add automated GitHub Actions workflows in `.github/workflows/` (e.g. `.github/workflows/deploy.yml` or `.github/workflows/deploy-prod.yml`):\n"
+            "  * For Google Cloud Platform: Deploy containerized applications to Google Cloud Run in Google Cloud project 'ai-learning-499409' (region: 'us-central1', unauthenticated access, using secrets.GCP_SA_KEY).\n"
+            "  * For Vercel: Deploy web applications to Vercel team/scope 'noam-projects2' (e.g. using vercel-action or vercel CLI with secrets.VERCEL_TOKEN).\n\n"
+            "PERSISTENCE & DATA STORAGE:\n"
+            f"- Any persistent data for this app (such as database records, user input, state, items, notes, tasks) "
+            f"MUST be stored in Google Cloud Firestore as a collection in Google Cloud (project 'ai-learning-499409'). "
             f"Use a dedicated collection for this app, named '{target_name}' or '{target_name}_<entity>'. "
             "NEVER use ephemeral local SQLite or local filesystem files for persistent application data on Google Cloud Run, "
             "as local files are destroyed when Cloud Run instances restart or scale down. "
             "Use the official Google Cloud Firestore client library (`google-cloud-firestore` in Python, `@google-cloud/firestore` in Node.js) "
-            "with Application Default Credentials (ADC) against database '(default)' in project 'remote-code-agent-output-9182' "
-            "(read from GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable with fallback to 'remote-code-agent-output-9182'). "
+            "with Application Default Credentials (ADC) against database '(default)' in project 'ai-learning-499409' "
+            "(read from GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable with fallback to 'ai-learning-499409'). "
             "Ensure `google-cloud-firestore` is included in requirements.txt (or `@google-cloud/firestore` in package.json). "
             "Always include graceful local fallback or mocking (e.g., an in-memory dictionary or mock store when GCP credentials are not present locally) "
             "so automated unit tests run and pass offline without needing active cloud credentials.\n\n"
-            "Always include comprehensive automated tests in a tests/ directory and a detailed README.md "
-            "explaining the application structure, endpoints, Firestore data structure, and how to use it. "
-            "Ensure all files and dependencies (requirements.txt or package.json) are properly created in your workspace."
+            "- Always include comprehensive automated tests in a tests/ directory and a detailed README.md "
+            "explaining the application structure, endpoints, Firestore data structure, configuration, and deployment instructions.\n"
+            "- Ensure all files and dependencies (requirements.txt or package.json) are properly created in your workspace."
         ),
         workspaces=[project_dir],
         policies=[policy.allow_all()],
@@ -183,8 +190,15 @@ async def generate_code_stream(
     total_tokens = 0
     generated_chars = 0
 
+    agent_prompt = (
+        f"You are Antigravity CLI on cloud. Act exactly as Antigravity CLI does. "
+        f"When asked to build an application, write the code, push it to my GitHub repository with the name of the project ('{app_name}') and, "
+        f"if asked to deploy, add GitHub workflow to deploy. You can use ai-learning Google Cloud project and Vercel noam-projects2.\n\n"
+        f"User Instruction:\n{prompt}"
+    ) if not is_info else prompt
+
     async with Agent(config) as agent:
-        response = await agent.chat(prompt)
+        response = await agent.chat(agent_prompt)
 
         # Stream real-time chunks (ToolCalls, Thoughts, Text)
         async for chunk in response.chunks:
@@ -237,14 +251,13 @@ async def generate_code_stream(
     if is_info:
         yield "\n✅ [Info Retrieval] Query completed. No code changes were made or published to GitHub.\n"
     else:
-        target_repo_name = os.environ.get("GITHUB_OUTPUT_REPO", "remote-code-agent-output")
-        yield f"\n\n📦 [GitHub] Publishing generated code to project '{app_name}' in {target_repo_name} (branch: main)...\n"
+        yield f"\n\n📦 [GitHub] Publishing generated code for project '{app_name}' to GitHub (branch: main)...\n"
         success, info = publish_project_to_github(project_dir, app_name, prompt=prompt)
         if success:
             yield (
-                f"\n🎉 [GitHub] Successfully pushed code directly to main in {target_repo_name}!\n"
+                f"\n🎉 [GitHub] Successfully pushed code to GitHub repository for '{app_name}'!\n"
                 f"🔗 Repository: {info}\n"
-                f"☁️ [Cloud Run] GitHub Actions is automatically building and deploying the app to Google Cloud.\n"
+                f"☁️ [Cloud Deployment] Configured for Google Cloud project ai-learning-499409 and Vercel noam-projects2.\n"
                 f"📂 Local Path: {project_dir}\n"
             )
         else:
