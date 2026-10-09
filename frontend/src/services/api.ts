@@ -1,16 +1,36 @@
 import type { FileContentResponse, Project, ProjectDetail } from '../types'
 
 const STORAGE_KEY_BACKEND = 'rca_backend_url'
+export const DEFAULT_PRODUCTION_BACKEND_URL =
+  'https://remote-code-agent-289332143182.us-central1.run.app'
 
 export function getBackendUrl(): string {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem(STORAGE_KEY_BACKEND)
     if (custom && custom.trim()) {
-      return custom.trim().replace(/\/+$/, '')
+      // Discard deprecated/stale backend URL if stored in browser localStorage
+      if (custom.includes('702552270447')) {
+        localStorage.removeItem(STORAGE_KEY_BACKEND)
+      } else {
+        return custom.trim().replace(/\/+$/, '')
+      }
     }
   }
-  const envUrl = import.meta.env.VITE_API_URL || ''
-  return envUrl.replace(/\/+$/, '')
+  const envUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '')
+  if (envUrl) {
+    return envUrl
+  }
+
+  // When hosted remotely (e.g. on Vercel) without env var, default to the production backend
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  ) {
+    return DEFAULT_PRODUCTION_BACKEND_URL
+  }
+
+  return ''
 }
 
 export function setBackendUrl(url: string): void {

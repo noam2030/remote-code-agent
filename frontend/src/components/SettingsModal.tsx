@@ -46,7 +46,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               className="text-input"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="e.g. https://remote-code-agent-702552270447.us-central1.run.app"
+              placeholder="e.g. https://remote-code-agent-289332143182.us-central1.run.app"
             />
             <small className="help-text">
               Leave blank to use default (same origin or Vite proxy).
