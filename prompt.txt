@@ -6,3 +6,4 @@
 6. merge
 7. update this application (remote-code-agent) logic. the promt to the remote code agent will be 'you are antigravity cli on cloud. act exactly as antigravity cli does. when asked to build an application, write the code, push it to my github repository with the name of the project and. if asked to deploy, add github workflow to deploy. you can use ai-learning google cloud project and vercel noam-projects2'
 8. confirm
+9. merge
