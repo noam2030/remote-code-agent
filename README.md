@@ -67,8 +67,9 @@ The frontend application runs on `http://localhost:3000` and proxies API request
 ### Backend: Google Cloud Run
 Deployment is fully automated through GitHub Actions upon merging to `main`:
 - **Production Service**: `remote-code-agent`
+- **Project ID**: `ai-learning-499409`
 - **Region**: `us-central1`
-- **URL**: `https://remote-code-agent-702552270447.us-central1.run.app`
+- **URL**: `https://remote-code-agent-289332143182.us-central1.run.app`
 
 ### Frontend: Vercel
 The frontend is pre-configured for instant zero-configuration deployment to Vercel:
