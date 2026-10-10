@@ -142,7 +142,7 @@ The application relies on the following environment variables:
 - `VERCEL_SCOPE`: Target Vercel team/scope for deployments (`noam-projects2`).
 - `VERCEL_TOKEN`: Vercel personal access token for automated frontend CI/CD deployments.
 - `VERCEL_ORG_ID`: Vercel Team ID (`team_abCCfq6oAKpFKOLdLU0hsGg5`).
-- `VERCEL_PROJECT_ID`: Vercel Project ID (`prj_Fm0oEgq70AJyuyhn3iFuLEgoJ3Hu`).
+- `VERCEL_PROJECT_ID`: Vercel Project ID (`prj_haBy0oc6TegmML9Z7aj7yKlMFgxm`).
 - `PORT`: HTTP port for backend server (default: `8080`).
 - `CORS_ORIGINS`: Comma-separated list of allowed origins.
 - `FRONTEND_URL`: URL of the deployed frontend application (`https://remote-code-agent-ui.vercel.app`).

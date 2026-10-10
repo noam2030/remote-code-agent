@@ -51,7 +51,7 @@ class TestCIWorkflows(unittest.TestCase):
         self.assertIn("deploy-api:", content)
         self.assertIn("deploy-frontend:", content)
         self.assertIn("remote-code-agent", content)
-        self.assertIn("VERCEL_TOKEN", content)
+        self.assertIn("prj_haBy0oc6TegmML9Z7aj7yKlMFgxm", content)
         self.assertIn("npx --yes vercel deploy --prod", content)
 
 
