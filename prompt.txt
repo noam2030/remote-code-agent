@@ -20,3 +20,4 @@
 20. why the deployment from gitgub to google cloud suceeded but to vercel not?
 21. i have updated VERCEL_TOKEN in .env
 22. y
+23. merge
