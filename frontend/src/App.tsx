@@ -44,13 +44,22 @@ export function App() {
     setLoadingProjects(true)
     try {
       const data = await listProjects()
-      setProjects(data)
       if (selectedProject) {
-        const found = data.find((p) => p.name === selectedProject.name)
-        if (found) setSelectedProject(found)
-      } else if (data.length > 0) {
-        // Auto-select first project if none selected
-        handleSelectProject(data[0])
+        const found = data.find((p) => p.name.toLowerCase() === selectedProject.name.toLowerCase())
+        if (found) {
+          setSelectedProject(found)
+          setProjects(data)
+        } else if (!selectedProject.has_remote && !selectedProject.is_local) {
+          // Keep active newly created project at top of list
+          setProjects([selectedProject, ...data.filter((p) => p.name.toLowerCase() !== selectedProject.name.toLowerCase())])
+        } else {
+          setProjects(data)
+        }
+      } else {
+        setProjects(data)
+        if (data.length > 0) {
+          handleSelectProject(data[0])
+        }
       }
     } catch (err: any) {
       showToast(`Error fetching projects: ${err.message}`)
@@ -65,14 +74,48 @@ export function App() {
 
   const handleSelectProject = async (proj: Project | null) => {
     setSelectedProject(proj)
-    if (proj) {
+    if (proj && (proj.has_remote || proj.is_local || (proj.files_count ?? 0) > 0)) {
       try {
         const detail = await getProject(proj.name)
-        setSelectedProject(detail)
+        if (detail) {
+          setSelectedProject(detail)
+        }
       } catch {
         // Fallback to existing summary
       }
     }
+  }
+
+  const handleCreateProject = (name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+
+    // Check if project already exists (case-insensitive)
+    const existing = projects.find((p) => p.name.toLowerCase() === trimmed.toLowerCase())
+    if (existing) {
+      handleSelectProject(existing)
+      showToast(`Selected existing project "${existing.name}".`)
+      return
+    }
+
+    const newProj: Project = {
+      name: trimmed,
+      cloud_run_url: null,
+      github_url: `https://github.com/noam2030/${trimmed}`,
+      has_remote: false,
+      is_local: false,
+      files: [],
+      files_detail: [],
+      lines_of_code: 0,
+      tokens_spent: 0,
+      files_count: 0,
+      stats: {},
+      description: 'New project ready for code generation',
+    }
+
+    setProjects((prev) => [newProj, ...prev.filter((p) => p.name.toLowerCase() !== trimmed.toLowerCase())])
+    setSelectedProject(newProj)
+    showToast(`Project "${trimmed}" created! Enter your prompt below to generate code.`)
   }
 
   const handleOpenFile = async (filePath: string) => {
@@ -155,6 +198,7 @@ export function App() {
           selectedProject={selectedProject}
           loading={loadingProjects}
           onSelectProject={handleSelectProject}
+          onCreateProject={handleCreateProject}
           onRefresh={fetchProjects}
           onDeleteProject={(proj) => {
             setSelectedProject(proj)

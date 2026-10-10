@@ -288,6 +288,46 @@ class TestProjectService(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 get_project_file_content(proj_name, "../../etc/passwd", workspace_dir=tmp_dir)
 
+    @patch("remote_code_agent.services.project_service.list_projects")
+    def test_get_project_details_preserves_canonical_casing(self, mock_list_projects):
+        mock_list_projects.return_value = [
+            {
+                "name": "OpenTrain",
+                "description": "Training platform",
+                "github_url": "https://github.com/noam2030/OpenTrain",
+                "cloud_run_url": None,
+                "has_remote": True,
+                "is_local": False,
+                "is_private": False,
+            },
+            {
+                "name": "builtwithai",
+                "description": "Built with AI directory",
+                "github_url": "https://github.com/noam2030/builtwithai",
+                "cloud_run_url": None,
+                "has_remote": True,
+                "is_local": False,
+                "is_private": False,
+            },
+        ]
+        with patch("remote_code_agent.services.project_service.sync_project_from_github") as mock_sync:
+            mock_sync.return_value = False
+            # Call with exact case
+            detail1 = get_project_details("OpenTrain")
+            self.assertIsNotNone(detail1)
+            self.assertEqual(detail1["name"], "OpenTrain")
+
+            # Call with lowercase
+            detail2 = get_project_details("opentrain")
+            self.assertIsNotNone(detail2)
+            self.assertEqual(detail2["name"], "OpenTrain")
+
+            # Call with slug
+            detail3 = get_project_details("open-train")
+            self.assertIsNotNone(detail3)
+            self.assertEqual(detail3["name"], "OpenTrain")
+
 
 if __name__ == "__main__":
     unittest.main()
+

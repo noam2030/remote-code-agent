@@ -29,6 +29,8 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
   - The sidebar automatically loads all user GitHub repositories on page load.
   - Users can browse, search, and click any repository to make it active for inspection or modification.
   - Controls to create a new project (`+ New`) or delete a project (`🗑️`).
+  - Creating a new project (`+ New`) immediately adds the project to the top of the sidebar list with a `✨ New` indicator and selects it as the active target project, so it remains persistent and selected for code generation.
+  - Selection state is case-insensitive and preserves canonical repository casing, ensuring that mixed-case or TitleCase projects (such as `OpenTrain` or `QR-X-Ray`) remain permanently active when selected.
 - **Target Project Banner & File Explorer**:
   - Displays the active project name, direct GitHub link, lines of code, and file count.
   - On-demand file explorer drawer allows opening and inspecting source files and master prompt history (`prompt.txt`).
@@ -76,7 +78,7 @@ The backend is structured under `backend/src/remote_code_agent`:
 - `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, and file inspection endpoints.
 - `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity` configured as Antigravity CLI on Cloud. Ensures target repository is cloned into `workspace/<project_name>` (and pulled up to date), executes agent in workspace, streams tool calls and logs, and pushes resulting commits directly to the dedicated GitHub repository.
 - `services/intent_service.py`: Classifies user input into code modification tasks or informational queries.
-- `services/project_service.py`: Discovers all user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, syncs dedicated repositories on demand, and calculates stats.
+- `services/project_service.py`: Discovers all user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, syncs dedicated repositories on demand, performs case-insensitive project lookup while preserving canonical repository casing (e.g., `OpenTrain`, `QR-X-Ray`), and calculates stats.
 - `services/prompt_service.py`: Parsing, updating, and synthesizing project prompt history in `prompt.txt`.
 - `services/github_service.py`: Dedicated project repository creation (`<owner>/<project_name>`), repository discovery, remote git publishing directly to `main`, and authenticated remote URL generation.
 - `server.py`: FastAPI application factory with CORS middleware and error handling.
@@ -86,8 +88,9 @@ The frontend is structured under `frontend/`:
 - `src/components/`: Reusable UI modules including `Header`, `Sidebar`, `TargetProjectBanner`, `FilesDrawer`, `TerminalStream`, `PromptEditor`, and modal dialogs.
 - `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints and EventSource listeners.
 - `src/types/`: Interfaces for projects, generation events, file trees, and system status.
-- `src/App.tsx`: Top-level application state orchestrator.
+- `src/App.tsx`: Top-level application state orchestrator, handling project creation persistence, active project selection with case-insensitivity, and code generation streaming.
 - `vercel.json`: Routing and static asset caching configuration.
+
 
 ## 8. Data Model
 - **Project Structure**:
