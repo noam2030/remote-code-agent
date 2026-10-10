@@ -19,7 +19,6 @@ from remote_code_agent.prompt_service import update_project_master_prompt
 from remote_code_agent.services.intent_service import (
     detect_project_from_prompt,
     is_info_retrieval_request,
-    is_list_github_projects_request,
 )
 
 
@@ -114,47 +113,22 @@ async def generate_code_stream(
 ) -> AsyncGenerator[str, None]:
     """Autonomous code creation and inspection workflow.
 
-    1. Checks if prompt is asking to list GitHub projects/repositories; if so, formats and streams catalog.
-    2. Classifies user intent (information retrieval vs. code creation/modification).
-    3. Determines target project: uses project_name if provided, detects from prompt, or derives slug.
-    4. Ensures isolated workspace directory exists for this project.
-    5. Syncs existing project codebase from GitHub if available and directory is empty.
-    6. If info retrieval:
+    1. Classifies user intent (information retrieval vs. code creation/modification).
+    2. Determines target project: uses project_name if provided, detects from prompt, or derives slug.
+    3. Ensures isolated workspace directory exists for this project (/workspace/<project_name>).
+    4. Syncs existing project codebase from GitHub (clones into workspace or pulls latest if present).
+    5. If info retrieval:
        - Runs read-only agent to inspect files and answer the question.
        - Does NOT update prompt.txt.
        - Does NOT publish to GitHub.
        - Protects workspace against any accidental alterations.
        - Replies directly in the console stream.
-    7. If code creation:
+    6. If code creation:
        - Consolidates prompt.txt specification.
-       - Runs code generation agent to implement requested changes.
-       - Automatically commits and publishes the generated project to GitHub main.
+       - Runs code generation agent to implement requested changes in /workspace/<project_name>.
+       - Automatically commits and publishes the generated/updated project to GitHub main.
     """
-    if is_list_github_projects_request(prompt):
-        yield "ℹ️ [Mode] Information Retrieval (GitHub Projects Catalog)\n\n"
-        yield "🔍 [GitHub Catalog] Discovering all GitHub projects for authenticated user...\n\n"
-        all_projects = list_projects()
-        remote_repos = [p for p in all_projects if p.get("has_remote")]
-        local_only = [p for p in all_projects if not p.get("has_remote")]
-
-        yield f"📁 Found {len(all_projects)} total projects ({len(remote_repos)} on GitHub, {len(local_only)} local workspace):\n\n"
-        for idx, p in enumerate(all_projects, 1):
-            name = p.get("name")
-            url = p.get("github_url", "")
-            desc = (p.get("description") or "").strip()
-            cloud_url = p.get("cloud_run_url")
-            vis = "🔒 Private" if p.get("is_private") else "🌐 Public"
-            status = "🐙 GitHub" if p.get("has_remote") else "💻 Local only"
-            desc_text = f" - {desc}" if desc else ""
-            yield f"{idx}. **[{name}]({url})** [{vis}] [{status}]{desc_text}\n"
-            if cloud_url:
-                yield f"   🚀 Live: {cloud_url}\n"
-
-        yield f"\n✅ Listed {len(all_projects)} projects. You can select any project to view files, make changes, or deploy.\n"
-        return
-
     is_info = is_info_retrieval_request(prompt)
-
 
     if project_name and project_name.strip():
         app_name = sanitize_project_name(project_name.strip())
@@ -184,13 +158,29 @@ async def generate_code_stream(
     project_dir = os.path.join(BASE_WORKSPACE, app_name)
     os.makedirs(project_dir, exist_ok=True)
 
-    # If the local directory has no files, sync existing project files from GitHub if available
+    # Sync project codebase from GitHub into workspace/<app_name>
     has_local_files = any(not f.startswith(".") for f in os.listdir(project_dir))
     if not has_local_files:
         try:
             synced = sync_project_from_github(app_name, project_dir)
             if synced:
-                yield f"📥 [Project: {app_name}] Synced existing codebase from GitHub repository.\n"
+                yield f"📥 [Project: {app_name}] Cloned repository into workspace from GitHub.\n"
+        except Exception:
+            pass
+    elif os.path.isdir(os.path.join(project_dir, ".git")):
+        try:
+            import subprocess
+            from remote_code_agent.github_service import get_github_env
+            pull_res = subprocess.run(
+                ["git", "pull", "--rebase", "origin", "main"],
+                cwd=project_dir,
+                env=get_github_env(),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if pull_res.returncode == 0:
+                yield f"🔄 [Project: {app_name}] Pulled latest changes from GitHub repository.\n"
         except Exception:
             pass
 

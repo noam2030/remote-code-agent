@@ -1,22 +1,19 @@
 # Project Specification
 
 ## 1. Overview
-Remote Code Agent is an autonomous AI-driven code generation, modification, and execution engine operating as **Antigravity CLI on Cloud**, built with the Google Antigravity SDK and FastAPI, paired with a modern React/TypeScript dashboard. The agent acts exactly as Antigravity CLI does on the cloud: when instructed to build an application, it autonomously writes complete production code, pushes it to the user's dedicated GitHub repository named after the project (`noam2030/<project_name>`), and if asked to deploy, adds GitHub Actions deployment workflows targeting Google Cloud project `ai-learning` (`ai-learning-499409`) and Vercel team/scope `noam-projects2`.
+Remote Code Agent is an autonomous AI-driven code generation, modification, and execution engine operating as **Antigravity CLI on Cloud**, built with the Google Antigravity SDK and FastAPI, paired with a modern React/TypeScript dashboard.
 
-The agent also comprehensively catalogues and displays all GitHub repositories belonging to the authenticated user (`<owner>/*`), enabling users to inspect, browse, and build upon any of their existing GitHub projects directly through the remote-code-agent interface and conversational prompts.
+As a core application feature, the web interface loads and catalogues all repositories belonging to the authenticated user's GitHub account (`<owner>/*`) alongside local projects. The user selects which repository to work on, or creates a new project repository, or deletes one. Once the user selects a repository and instructs the agent to write new code or update existing code, the application clones the selected repository into `workspace/<project_name>` (or pulls latest changes if already present), implements the requested code changes via Antigravity CLI on Cloud, and commits and pushes the updated code directly to the dedicated GitHub repository (`<owner>/<project_name>`). If asked to deploy, the agent adds GitHub Actions workflows targeting Google Cloud project `ai-learning` (`ai-learning-499409`) and Vercel scope `noam-projects2`.
 
 The service is deployed on Google Cloud Run under project `ai-learning-499409`.
 
 ## 2. Requirements
-- **Antigravity CLI on Cloud Logic**: Act exactly as Antigravity CLI on the cloud: reason autonomously, write clean production-ready code, run tests, and manage files in isolated project workspaces.
-- **Dedicated Project Repositories**: Commit and push generated application code directly to the user's dedicated GitHub repository named after the project (`<owner>/<project_name>`), creating the repository via GitHub CLI if it does not yet exist.
-- **GitHub Projects Discovery & Listing**:
-  - Automatically discover and list all GitHub repositories owned by or accessible to the user (`<owner>/*`) using the GitHub CLI (`gh repo list`) and GitHub REST API (`/user/repos`).
-  - Merge discovered remote repositories with local workspace projects into a unified project catalog.
-  - Support conversational prompts asking to list GitHub projects (e.g. *"list all my github projects"*), streaming back a formatted catalog with repository URLs, descriptions, and visibility details in real-time.
-- **On-Demand Project Synchronization**:
-  - When inspecting a remote GitHub repository that has not been cloned locally, automatically clone the dedicated repository (`<owner>/<project_name>`) into `workspace/<project_name>`.
-  - Calculate lines of code, index the file tree, parse README documentation, and make source files available for viewing and editing.
+- **Application-Level Repository Management**: The webpage automatically loads all user GitHub repositories on startup via `GET /api/projects`. Users can select any repository to work on, create a new repository, or delete an existing one directly in the UI.
+- **Repository Cloning & Synchronization**: When a user selects a repository and submits an instruction to write new code or update code:
+  - If the project has not yet been cloned locally, the application automatically clones the repository into `workspace/<project_name>`.
+  - If the project already exists locally in `workspace/<project_name>`, the application pulls latest remote changes to ensure the workspace is up to date before code generation begins.
+- **Antigravity CLI on Cloud Code Generation**: Implements requested code additions or updates directly inside the project workspace directory `workspace/<project_name>`, running tests and maintaining code quality.
+- **Dedicated GitHub Push**: Commits and pushes generated or modified code directly to the user's dedicated GitHub repository (`<owner>/<project_name>`) on the `main` branch.
 - **Automated Deployment Workflows**: When asked to deploy, generate GitHub Actions workflows (`.github/workflows/deploy.yml`):
   - Google Cloud Platform deployments target project `ai-learning` (`ai-learning-499409`) on Cloud Run.
   - Vercel deployments target scope/team `noam-projects2`.
@@ -24,14 +21,19 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
 - **Real-Time Streaming**: Stream logs, tool invocations, and agent actions to client applications using Server-Sent Events (SSE).
 - **Project Isolation**: Maintain independent workspace directories under `workspace/<project_name>` for each generated or managed project.
 - **Prompt History Tracking**: Persist sequential user prompts per project in `prompt.txt` (`1. <prompt>`, `2. <prompt>`).
-- **Read-Only / Retrieval Mode**: Support query-only intent detection to inspect repositories and list GitHub projects without altering files or pushing unwanted commits.
+- **Read-Only / Retrieval Mode**: Support query-only intent detection to inspect repository files without altering code or pushing unwanted commits.
 - **Continuous Integration & Delivery**: Maintain GitHub Actions workflows for automated test execution, staging deployment on PRs, and production deployment on merge to `main`.
 
 ## 3. User Experience
-- **Interactive Dashboard**: Clean, responsive web interface allowing users to enter prompts, view active projects, inspect generated file trees, and view live terminal output.
-- **Terminal & Log Viewer**: Real-time console view rendering color-coded output from backend SSE streams.
-- **Project Navigator & GitHub Catalog**: Sidebar displaying all user GitHub repositories alongside local workspace projects with repository badges, creation/update metadata, descriptions, file counts, and direct links to GitHub repositories.
-- **Execution Controls**: Controls to initiate generation, cancel in-progress operations, or remove projects.
+- **Interactive Dashboard & Repository Navigator**:
+  - The sidebar automatically loads all user GitHub repositories on page load.
+  - Users can browse, search, and click any repository to make it active for inspection or modification.
+  - Controls to create a new project (`+ New`) or delete a project (`🗑️`).
+- **Target Project Banner & File Explorer**:
+  - Displays the active project name, direct GitHub link, lines of code, and file count.
+  - On-demand file explorer drawer allows opening and inspecting source files and master prompt history (`prompt.txt`).
+- **Terminal & Log Viewer**: Real-time console view rendering color-coded output from backend SSE streams during code generation, testing, and GitHub pushing.
+- **Execution Controls**: Prompt input with quick actions to initiate generation, inspect architecture, or cancel in-progress operations.
 
 ## 4. Architecture
 The system consists of two primary tiers:
@@ -51,7 +53,7 @@ The system consists of two primary tiers:
      │    ├── Intent Detection (Info vs Code)
      │    ├── Project Service (Workspace, GitHub Repo Catalog & Sync)
      │    ├── Prompt Service (prompt.txt History)
-     │    └── GitHub Service (Repo Discovery, Init & Push)
+     │    └── GitHub Service (Repo Discovery, Clone, Init & Push)
      └── Local Storage (workspace/<project_name>)
 ```
 
@@ -72,16 +74,16 @@ The system consists of two primary tiers:
 The backend is structured under `backend/src/remote_code_agent`:
 - `core/config.py`: Environment variable loading, fallback discovery, GCP project ID (`ai-learning-499409`), and Vercel scope settings (`noam-projects2`).
 - `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, and file inspection endpoints.
-- `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity` configured as Antigravity CLI on Cloud: writes code in workspace, streams tool calls, answers informational queries (including listing all user GitHub projects), generates GitHub deployment workflows for GCP (`ai-learning-499409`) and Vercel (`noam-projects2`), and coordinates repository publishing.
+- `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity` configured as Antigravity CLI on Cloud. Ensures target repository is cloned into `workspace/<project_name>` (and pulled up to date), executes agent in workspace, streams tool calls and logs, and pushes resulting commits directly to the dedicated GitHub repository.
 - `services/intent_service.py`: Classifies user input into code modification tasks or informational queries.
 - `services/project_service.py`: Discovers all user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, syncs dedicated repositories on demand, and calculates stats.
 - `services/prompt_service.py`: Parsing, updating, and synthesizing project prompt history in `prompt.txt`.
-- `services/github_service.py`: Dedicated project repository creation (`<owner>/<project_name>`), remote git publishing directly to `main`, and GitHub user/repo resolution.
+- `services/github_service.py`: Dedicated project repository creation (`<owner>/<project_name>`), repository discovery, remote git publishing directly to `main`, and authenticated remote URL generation.
 - `server.py`: FastAPI application factory with CORS middleware and error handling.
 
 ## 7. Frontend
 The frontend is structured under `frontend/`:
-- `src/components/`: Reusable UI modules including `Header`, `Sidebar`, `Terminal`, `PromptEditor`, `ProjectStats`, and modal dialogs.
+- `src/components/`: Reusable UI modules including `Header`, `Sidebar`, `TargetProjectBanner`, `FilesDrawer`, `TerminalStream`, `PromptEditor`, and modal dialogs.
 - `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints and EventSource listeners.
 - `src/types/`: Interfaces for projects, generation events, file trees, and system status.
 - `src/App.tsx`: Top-level application state orchestrator.
@@ -123,11 +125,11 @@ The frontend is structured under `frontend/`:
 
 ## 9. API
 - `GET /api/health`: Health status endpoint returning status code 200 and system health metadata.
-- `GET /api/projects`: List all managed projects and user GitHub repositories.
-- `GET /api/projects/{project_name}`: Retrieve project details, file list, stats, and README (syncing from GitHub if needed).
+- `GET /api/projects`: List all user GitHub repositories and local workspace projects.
+- `GET /api/projects/{project_name}`: Retrieve project details, file list, stats, and README (syncing/cloning from GitHub into `workspace/<project_name>` if needed).
 - `DELETE /api/projects/{name}`: Delete project workspace directory and optionally remove remote GitHub repository.
 - `GET /api/projects/{name}/files/{file_path}`: Retrieve content and metadata for a specific file in a project.
-- `POST /api/generate`: Initiate code generation or prompt execution, returning an SSE stream.
+- `POST /api/generate`: Initiate code generation or prompt execution on the target project, ensuring it is cloned and pulled up to date, returning an SSE stream, and pushing commits to GitHub.
 - `GET /api/projects/{name}/prompts`: Retrieve history of prompts for the specified project.
 
 ## 10. Configuration
@@ -148,8 +150,8 @@ The application relies on the following environment variables:
 - Test execution command: `.venv/bin/python -m unittest discover tests`.
 - Covered test modules:
   - `test_api_routes.py`: REST endpoint verification.
-  - `test_code_creation.py`: Agent execution, streaming behavior, and repository listing queries.
-  - `test_github_service.py`: Git operations, token parsing, and user repo resolution.
+  - `test_code_creation.py`: Agent execution, repository clone/pull, streaming behavior, and dedicated GitHub pushing.
+  - `test_github_service.py`: Git operations, token parsing, and user repo discovery.
   - `test_intent_service.py`: Classification of user prompts.
   - `test_project_service.py`: GitHub repository catalog discovery, workspace scanning, dedicated repo sync, and cleanup.
   - `test_prompt_service.py`: `prompt.txt` manipulation.

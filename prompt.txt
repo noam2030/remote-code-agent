@@ -9,3 +9,5 @@
 9. merge
 10. i want that the remote-code-agent will list all my github projects
 11. confirm
+12. update the pull request. " 1. Checks if prompt is asking to list GitHub projects/repositories; if so, formats and streams catalog." it is not subject to prompt or ask. this is the part of the application. the webpage load the reposiroty and th euser select on which project to work, to create new repository, or delete one. once the user select the repository and ask to write new code or update the code - the app will clone the project into /workspace dir will wimplement the code and push to github
+13. confirm

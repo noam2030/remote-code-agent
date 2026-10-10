@@ -7,9 +7,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from remote_code_agent.services.intent_service import (
     detect_project_from_prompt,
     is_info_retrieval_request,
-    is_list_github_projects_request,
     strip_polite_prefixes,
 )
+
 
 
 
@@ -57,27 +57,6 @@ class TestIntentService(unittest.TestCase):
                     is_info_retrieval_request(q),
                     f"Expected '{q}' to be classified as info retrieval",
                 )
-
-    def test_list_github_projects_request(self):
-        prompts = [
-            "list all my github projects",
-            "i want that the remote-code-agent will list all my github projects",
-            "show all my github repos",
-            "list my projects",
-            "display all my github repositories",
-            "what are all my github repos",
-        ]
-        for p in prompts:
-            with self.subTest(prompt=p):
-                self.assertTrue(
-                    is_list_github_projects_request(p),
-                    f"Expected '{p}' to be recognized as list github projects request",
-                )
-                self.assertTrue(
-                    is_info_retrieval_request(p),
-                    f"Expected '{p}' to be recognized as info retrieval",
-                )
-
     def test_code_mutation_queries(self):
         mutations = [
             "Build a weather app",
