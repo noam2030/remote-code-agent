@@ -111,13 +111,12 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || 'team_abCCfq6oAKpFKOLdLU0hsGg5' }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || 'prj_Fm0oEgq70AJyuyhn3iFuLEgoJ3Hu' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || 'prj_haBy0oc6TegmML9Z7aj7yKlMFgxm' }}
         run: |
           if [ -z "$VERCEL_TOKEN" ]; then
             echo "::warning::VERCEL_TOKEN secret is not configured in repository secrets. Skipping Vercel staging deploy until secret is added."
             exit 0
           fi
-          cd frontend
           mkdir -p .vercel
           echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" > .vercel/project.json
           npx --yes vercel deploy --token="$VERCEL_TOKEN" --build-env VITE_API_URL="https://remote-code-agent-staging-289332143182.us-central1.run.app"
