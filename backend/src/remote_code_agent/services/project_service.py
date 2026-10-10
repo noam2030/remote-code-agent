@@ -535,38 +535,41 @@ def sync_project_from_github(
     owner = get_github_owner(env)
     clean_name = sanitize_project_name(project_name)
 
-    # 1. Try dedicated project repository first
-    dedicated_repo = f"{owner}/{clean_name}"
-    dedicated_url = get_authenticated_repo_url(dedicated_repo, env=env)
+    # 1. Try dedicated project repository (both canonical name and sanitized slug)
+    repos_to_try = [f"{owner}/{project_name}"]
+    if clean_name != project_name:
+        repos_to_try.append(f"{owner}/{clean_name}")
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        res = subprocess.run(
-            ["git", "clone", "--depth", "1", dedicated_url, tmp_dir],
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-        if res.returncode == 0 and os.listdir(tmp_dir):
-            os.makedirs(target_dir, exist_ok=True)
-            src_root = tmp_dir
-            sub_proj = os.path.join(tmp_dir, clean_name)
-            if os.path.isdir(sub_proj) and len([f for f in os.listdir(tmp_dir) if f != ".git"]) == 1:
-                src_root = sub_proj
+    for dedicated_repo in repos_to_try:
+        dedicated_url = get_authenticated_repo_url(dedicated_repo, env=env)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            res = subprocess.run(
+                ["git", "clone", "--depth", "1", dedicated_url, tmp_dir],
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            if res.returncode == 0 and os.listdir(tmp_dir):
+                os.makedirs(target_dir, exist_ok=True)
+                src_root = tmp_dir
+                sub_proj = os.path.join(tmp_dir, clean_name)
+                if os.path.isdir(sub_proj) and len([f for f in os.listdir(tmp_dir) if f != ".git"]) == 1:
+                    src_root = sub_proj
 
-            copied_any = False
-            for item in os.listdir(src_root):
-                if item == ".git":
-                    continue
-                src_item = os.path.join(src_root, item)
-                dst_item = os.path.join(target_dir, item)
-                if os.path.isdir(src_item):
-                    shutil.copytree(src_item, dst_item, dirs_exist_ok=True)
-                    copied_any = True
-                else:
-                    shutil.copy2(src_item, dst_item)
-                    copied_any = True
-            if copied_any:
-                return True
+                copied_any = False
+                for item in os.listdir(src_root):
+                    if item == ".git":
+                        continue
+                    src_item = os.path.join(src_root, item)
+                    dst_item = os.path.join(target_dir, item)
+                    if os.path.isdir(src_item):
+                        shutil.copytree(src_item, dst_item, dirs_exist_ok=True)
+                        copied_any = True
+                    else:
+                        shutil.copy2(src_item, dst_item)
+                        copied_any = True
+                if copied_any:
+                    return True
 
     # 2. Fallback to central output repo
     full_repo = resolve_output_repo_full_name(target_repo, env=env)
@@ -607,8 +610,27 @@ def get_project_details(project_name: str) -> dict[str, Any] | None:
     """Returns detailed information, file tree, LOC, token stats, and README for a specific project.
 
     If the project exists in GitHub but not locally, syncs it to local workspace.
+    Preserves exact canonical casing from the GitHub catalog (e.g. 'OpenTrain').
     """
-    clean_name = sanitize_project_name(project_name)
+    owner = get_github_owner()
+    all_projects = list_projects()
+
+    # Find matching project from catalog using case-insensitive and slug comparison
+    clean_input = sanitize_project_name(project_name)
+    norm_input = re.sub(r"[^a-z0-9]", "", project_name.lower())
+    catalog_match = next(
+        (
+            p
+            for p in all_projects
+            if p["name"].strip().lower() == project_name.strip().lower()
+            or sanitize_project_name(p["name"]) == clean_input
+            or (norm_input and re.sub(r"[^a-z0-9]", "", p["name"].lower()) == norm_input)
+        ),
+        None,
+    )
+
+    canonical_name = catalog_match["name"] if catalog_match else project_name.strip()
+    clean_name = sanitize_project_name(canonical_name)
     local_dir = os.path.join(BASE_WORKSPACE, clean_name)
 
     # If local directory does not exist or has no files, try syncing from GitHub
@@ -616,14 +638,12 @@ def get_project_details(project_name: str) -> dict[str, Any] | None:
         not f.startswith(".") for f in os.listdir(local_dir)
     )
     if not has_local_files:
-        sync_project_from_github(clean_name, local_dir)
+        sync_project_from_github(canonical_name, local_dir)
 
-    owner = get_github_owner()
-    all_projects = {p["name"]: p for p in list_projects()}
-    project_info = all_projects.get(clean_name) or {
-        "name": clean_name,
+    project_info = dict(catalog_match) if catalog_match else {
+        "name": canonical_name,
         "description": "",
-        "github_url": f"https://github.com/{owner}/{clean_name}",
+        "github_url": f"https://github.com/{owner}/{canonical_name}",
         "cloud_run_url": None,
         "has_remote": False,
         "is_local": os.path.isdir(local_dir),
@@ -643,6 +663,7 @@ def get_project_details(project_name: str) -> dict[str, Any] | None:
         except Exception:
             pass
 
+    project_info["name"] = canonical_name
     project_info["files"] = files
     project_info["files_count"] = len(files)
     project_info["files_detail"] = files_detail

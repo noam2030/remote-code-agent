@@ -6,6 +6,7 @@ interface SidebarProps {
   selectedProject: Project | null
   loading: boolean
   onSelectProject: (project: Project | null) => void
+  onCreateProject?: (projectName: string) => void
   onRefresh: () => void
   onDeleteProject?: (project: Project) => void
 }
@@ -15,6 +16,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedProject,
   loading,
   onSelectProject,
+  onCreateProject,
   onRefresh,
   onDeleteProject,
 }) => {
@@ -32,20 +34,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const name = newProjectName.trim()
     setNewProjectName('')
     setShowNewBox(false)
-    // Select placeholder project for creation
-    onSelectProject({
-      name,
-      cloud_run_url: null,
-      github_url: `https://github.com/noam2030/${name}`,
-      has_remote: false,
-      is_local: false,
-      files: [],
-      files_detail: [],
-      lines_of_code: 0,
-      tokens_spent: 0,
-      files_count: 0,
-      stats: {},
-    })
+    if (onCreateProject) {
+      onCreateProject(name)
+    } else {
+      // Select placeholder project for creation
+      onSelectProject({
+        name,
+        cloud_run_url: null,
+        github_url: `https://github.com/noam2030/${name}`,
+        has_remote: false,
+        is_local: false,
+        files: [],
+        files_detail: [],
+        lines_of_code: 0,
+        tokens_spent: 0,
+        files_count: 0,
+        stats: {},
+      })
+    }
   }
 
   return (
@@ -113,7 +119,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         ) : (
           filtered.map((proj) => {
-            const isActive = selectedProject?.name === proj.name
+            const isActive = Boolean(
+              selectedProject && selectedProject.name.toLowerCase() === proj.name.toLowerCase()
+            )
             const fileCount = proj.files_count || (proj.files_detail ? proj.files_detail.length : 0)
 
             return (
@@ -190,6 +198,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   )}
                   {fileCount > 0 ? (
                     <span className="project-tag tag-files">📄 {fileCount} files</span>
+                  ) : (!proj.has_remote && !proj.is_local) ? (
+                    <span className="project-tag tag-files" style={{ borderColor: '#10b981', color: '#10b981' }}>✨ New</span>
                   ) : (
                     <span className="project-tag tag-files">☁️ GitHub</span>
                   )}
