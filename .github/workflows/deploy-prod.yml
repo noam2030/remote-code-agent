@@ -1,12 +1,12 @@
-name: Deploy Production to Google Cloud
+name: Deploy Production to Google Cloud & Vercel
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  test:
-    name: Run Automated Tests
+  test-backend:
+    name: Run Automated Tests (Backend)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -26,9 +26,33 @@ jobs:
         run: |
           python -m unittest discover tests
 
-  deploy-production:
-    name: Deploy to Cloud Run (Production)
-    needs: test
+  test-frontend:
+    name: Verify Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+
+  deploy-api:
+    name: Deploy API to Cloud Run (Production)
+    needs: [test-backend, test-frontend]
     if: success()
     runs-on: ubuntu-latest
     steps:
@@ -51,3 +75,40 @@ jobs:
             --region ${{ vars.GCP_REGION || 'us-central1' }} \
             --allow-unauthenticated \
             --set-env-vars AGENT_WORKSPACE=workspace,GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}",GH_TOKEN="${{ secrets.GH_TOKEN }}",GITHUB_OUTPUT_REPO=remote-code-agent-output
+
+  deploy-frontend:
+    name: Deploy Frontend to Vercel (Production)
+    needs: [test-backend, test-frontend]
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Deploy Frontend to Vercel (Production)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || 'team_abCCfq6oAKpFKOLdLU0hsGg5' }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || 'prj_Fm0oEgq70AJyuyhn3iFuLEgoJ3Hu' }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN secret is not configured in repository secrets."
+            echo "Please add VERCEL_TOKEN to GitHub repository secrets (Settings > Secrets and variables > Actions) to complete Vercel production deployment."
+            exit 1
+          fi
+          cd frontend
+          mkdir -p .vercel
+          echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" > .vercel/project.json
+          npx --yes vercel deploy --prod --token="$VERCEL_TOKEN" --build-env VITE_API_URL="https://remote-code-agent-289332143182.us-central1.run.app"
