@@ -16,3 +16,4 @@
 16. no. you did understand me. i want 1- make the staging deployment optional, only if i click in the github ui. 2 - when i confirm to merge to main - a the github action should deploy the api to google cloud and the forntend to vercel
 17. y
 18. confirm
+19. merge
