@@ -3,11 +3,20 @@
 ## 1. Overview
 Remote Code Agent is an autonomous AI-driven code generation, modification, and execution engine operating as **Antigravity CLI on Cloud**, built with the Google Antigravity SDK and FastAPI, paired with a modern React/TypeScript dashboard. The agent acts exactly as Antigravity CLI does on the cloud: when instructed to build an application, it autonomously writes complete production code, pushes it to the user's dedicated GitHub repository named after the project (`noam2030/<project_name>`), and if asked to deploy, adds GitHub Actions deployment workflows targeting Google Cloud project `ai-learning` (`ai-learning-499409`) and Vercel team/scope `noam-projects2`.
 
+The agent also comprehensively catalogues and displays all GitHub repositories belonging to the authenticated user (`<owner>/*`), enabling users to inspect, browse, and build upon any of their existing GitHub projects directly through the remote-code-agent interface and conversational prompts.
+
 The service is deployed on Google Cloud Run under project `ai-learning-499409`.
 
 ## 2. Requirements
 - **Antigravity CLI on Cloud Logic**: Act exactly as Antigravity CLI on the cloud: reason autonomously, write clean production-ready code, run tests, and manage files in isolated project workspaces.
 - **Dedicated Project Repositories**: Commit and push generated application code directly to the user's dedicated GitHub repository named after the project (`<owner>/<project_name>`), creating the repository via GitHub CLI if it does not yet exist.
+- **GitHub Projects Discovery & Listing**:
+  - Automatically discover and list all GitHub repositories owned by or accessible to the user (`<owner>/*`) using the GitHub CLI (`gh repo list`) and GitHub REST API (`/user/repos`).
+  - Merge discovered remote repositories with local workspace projects into a unified project catalog.
+  - Support conversational prompts asking to list GitHub projects (e.g. *"list all my github projects"*), streaming back a formatted catalog with repository URLs, descriptions, and visibility details in real-time.
+- **On-Demand Project Synchronization**:
+  - When inspecting a remote GitHub repository that has not been cloned locally, automatically clone the dedicated repository (`<owner>/<project_name>`) into `workspace/<project_name>`.
+  - Calculate lines of code, index the file tree, parse README documentation, and make source files available for viewing and editing.
 - **Automated Deployment Workflows**: When asked to deploy, generate GitHub Actions workflows (`.github/workflows/deploy.yml`):
   - Google Cloud Platform deployments target project `ai-learning` (`ai-learning-499409`) on Cloud Run.
   - Vercel deployments target scope/team `noam-projects2`.
@@ -15,13 +24,13 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
 - **Real-Time Streaming**: Stream logs, tool invocations, and agent actions to client applications using Server-Sent Events (SSE).
 - **Project Isolation**: Maintain independent workspace directories under `workspace/<project_name>` for each generated or managed project.
 - **Prompt History Tracking**: Persist sequential user prompts per project in `prompt.txt` (`1. <prompt>`, `2. <prompt>`).
-- **Read-Only / Retrieval Mode**: Support query-only intent detection to inspect repositories without writing code or pushing to GitHub.
+- **Read-Only / Retrieval Mode**: Support query-only intent detection to inspect repositories and list GitHub projects without altering files or pushing unwanted commits.
 - **Continuous Integration & Delivery**: Maintain GitHub Actions workflows for automated test execution, staging deployment on PRs, and production deployment on merge to `main`.
 
 ## 3. User Experience
 - **Interactive Dashboard**: Clean, responsive web interface allowing users to enter prompts, view active projects, inspect generated file trees, and view live terminal output.
 - **Terminal & Log Viewer**: Real-time console view rendering color-coded output from backend SSE streams.
-- **Project Navigator**: Sidebar displaying available workspace projects with creation timestamps, file counts, and direct links to GitHub repositories.
+- **Project Navigator & GitHub Catalog**: Sidebar displaying all user GitHub repositories alongside local workspace projects with repository badges, creation/update metadata, descriptions, file counts, and direct links to GitHub repositories.
 - **Execution Controls**: Controls to initiate generation, cancel in-progress operations, or remove projects.
 
 ## 4. Architecture
@@ -38,11 +47,11 @@ The system consists of two primary tiers:
      ├── Core Configuration (Env, Secrets, Paths)
      ├── API Layer (REST & SSE Endpoints)
      ├── Services
-     │    ├── Code Creation (Antigravity SDK Runner)
+     │    ├── Code Creation (Antigravity SDK Runner & Streamer)
      │    ├── Intent Detection (Info vs Code)
-     │    ├── Project Service (Workspace & Files)
+     │    ├── Project Service (Workspace, GitHub Repo Catalog & Sync)
      │    ├── Prompt Service (prompt.txt History)
-     │    └── GitHub Service (Repo Init & Push)
+     │    └── GitHub Service (Repo Discovery, Init & Push)
      └── Local Storage (workspace/<project_name>)
 ```
 
@@ -63,11 +72,11 @@ The system consists of two primary tiers:
 The backend is structured under `backend/src/remote_code_agent`:
 - `core/config.py`: Environment variable loading, fallback discovery, GCP project ID (`ai-learning-499409`), and Vercel scope settings (`noam-projects2`).
 - `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, and file inspection endpoints.
-- `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity` configured as Antigravity CLI on Cloud: writes code in workspace, streams tool calls, generates GitHub deployment workflows for GCP (`ai-learning-499409`) and Vercel (`noam-projects2`), and coordinates repository publishing.
+- `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity` configured as Antigravity CLI on Cloud: writes code in workspace, streams tool calls, answers informational queries (including listing all user GitHub projects), generates GitHub deployment workflows for GCP (`ai-learning-499409`) and Vercel (`noam-projects2`), and coordinates repository publishing.
 - `services/intent_service.py`: Classifies user input into code modification tasks or informational queries.
-- `services/project_service.py`: Workspace directory indexing, project deletion, and file metadata generation.
+- `services/project_service.py`: Discovers all user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, syncs dedicated repositories on demand, and calculates stats.
 - `services/prompt_service.py`: Parsing, updating, and synthesizing project prompt history in `prompt.txt`.
-- `services/github_service.py`: Dedicated project repository creation (`<owner>/<project_name>`), remote git publishing directly to `main`, and central output repository catalog syncing.
+- `services/github_service.py`: Dedicated project repository creation (`<owner>/<project_name>`), remote git publishing directly to `main`, and GitHub user/repo resolution.
 - `server.py`: FastAPI application factory with CORS middleware and error handling.
 
 ## 7. Frontend
@@ -88,17 +97,36 @@ The frontend is structured under `frontend/`:
       ├── .github/workflows/ # Deployment workflows (if requested)
       └── ...                # Generated source code
   ```
+- **Project Schema**:
+  ```typescript
+  export interface Project {
+    name: string
+    description?: string
+    github_url: string
+    cloud_run_url: string | null
+    has_remote: boolean
+    is_local: boolean
+    is_private?: boolean
+    files: string[]
+    files_count: number
+    files_detail: ProjectFileDetail[]
+    lines_of_code: number
+    tokens_spent: number
+    stats: ProjectStats
+  }
+  ```
 - **SSE Event Protocol**:
   - `data: {"type": "log", "message": "..."}`
-  - `data: {"type": "tool_call", "tool": "...", "args": {...}}`
+  - `data: {"type": "tool_call", "tool": "..."}`
   - `data: {"type": "error", "error": "..."}`
   - `data: {"type": "done", "project": "...", "repo_url": "..."}`
 
 ## 9. API
 - `GET /api/health`: Health status endpoint returning status code 200 and system health metadata.
-- `GET /api/projects`: List all managed projects in the workspace.
-- `DELETE /api/projects/{name}`: Delete project workspace directory.
-- `GET /api/projects/{name}/files`: Retrieve file tree and contents for a specific project.
+- `GET /api/projects`: List all managed projects and user GitHub repositories.
+- `GET /api/projects/{project_name}`: Retrieve project details, file list, stats, and README (syncing from GitHub if needed).
+- `DELETE /api/projects/{name}`: Delete project workspace directory and optionally remove remote GitHub repository.
+- `GET /api/projects/{name}/files/{file_path}`: Retrieve content and metadata for a specific file in a project.
 - `POST /api/generate`: Initiate code generation or prompt execution, returning an SSE stream.
 - `GET /api/projects/{name}/prompts`: Retrieve history of prompts for the specified project.
 
@@ -120,10 +148,10 @@ The application relies on the following environment variables:
 - Test execution command: `.venv/bin/python -m unittest discover tests`.
 - Covered test modules:
   - `test_api_routes.py`: REST endpoint verification.
-  - `test_code_creation.py`: Agent execution and streaming behavior.
-  - `test_github_service.py`: Git operations and token parsing.
+  - `test_code_creation.py`: Agent execution, streaming behavior, and repository listing queries.
+  - `test_github_service.py`: Git operations, token parsing, and user repo resolution.
   - `test_intent_service.py`: Classification of user prompts.
-  - `test_project_service.py`: Workspace scanning and cleanup.
+  - `test_project_service.py`: GitHub repository catalog discovery, workspace scanning, dedicated repo sync, and cleanup.
   - `test_prompt_service.py`: `prompt.txt` manipulation.
   - `test_server.py`: FastAPI application startup and CORS verification.
 

@@ -15,10 +15,12 @@ export interface ProjectStats {
 
 export interface Project {
   name: string
+  description?: string
   github_url: string
   cloud_run_url: string | null
   has_remote: boolean
   is_local: boolean
+  is_private?: boolean
   files: string[]
   files_count: number
   files_detail: ProjectFileDetail[]

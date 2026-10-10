@@ -10,6 +10,7 @@ from google.antigravity.hooks import policy
 from remote_code_agent.github_service import derive_project_slug, publish_project_to_github
 from remote_code_agent.project_service import (
     inspect_project_files,
+    list_projects,
     record_project_run_tokens,
     sanitize_project_name,
     sync_project_from_github,
@@ -18,7 +19,9 @@ from remote_code_agent.prompt_service import update_project_master_prompt
 from remote_code_agent.services.intent_service import (
     detect_project_from_prompt,
     is_info_retrieval_request,
+    is_list_github_projects_request,
 )
+
 
 # Dedicated workspace directory for agent-generated projects
 BASE_WORKSPACE = os.path.abspath(os.environ.get("AGENT_WORKSPACE", "workspace"))
@@ -92,11 +95,12 @@ def get_info_retrieval_agent_config(
     return google.antigravity.LocalAgentConfig(
         system_instructions=(
             f"You are an expert software engineer and code analyst inspecting the project '{target_name}'. "
+            "You have access to the user's GitHub projects via GitHub CLI (`gh repo list`, `gh repo view`) and local workspace files. "
             "The user is asking an informational query to inspect files, understand the architecture, or answer questions. "
             "CRITICAL CONSTRAINTS:\n"
             "- Do NOT create, write, modify, or delete any files or directories in the workspace.\n"
             "- Do NOT write code to disk or execute commands that alter the repository.\n"
-            "- Read and inspect existing workspace files as needed to answer the user's question accurately.\n"
+            "- Read and inspect existing workspace files or run read-only commands as needed to answer the user's question accurately.\n"
             "- Provide a direct, thorough, and well-structured answer in your response text in the console."
         ),
         workspaces=[project_dir],
@@ -110,22 +114,47 @@ async def generate_code_stream(
 ) -> AsyncGenerator[str, None]:
     """Autonomous code creation and inspection workflow.
 
-    1. Classifies user intent (information retrieval vs. code creation/modification).
-    2. Determines target project: uses project_name if provided, detects from prompt, or derives slug.
-    3. Ensures isolated workspace directory exists for this project.
-    4. Syncs existing project codebase from GitHub if available and directory is empty.
-    5. If info retrieval:
+    1. Checks if prompt is asking to list GitHub projects/repositories; if so, formats and streams catalog.
+    2. Classifies user intent (information retrieval vs. code creation/modification).
+    3. Determines target project: uses project_name if provided, detects from prompt, or derives slug.
+    4. Ensures isolated workspace directory exists for this project.
+    5. Syncs existing project codebase from GitHub if available and directory is empty.
+    6. If info retrieval:
        - Runs read-only agent to inspect files and answer the question.
        - Does NOT update prompt.txt.
        - Does NOT publish to GitHub.
        - Protects workspace against any accidental alterations.
        - Replies directly in the console stream.
-    6. If code creation:
+    7. If code creation:
        - Consolidates prompt.txt specification.
        - Runs code generation agent to implement requested changes.
        - Automatically commits and publishes the generated project to GitHub main.
     """
+    if is_list_github_projects_request(prompt):
+        yield "ℹ️ [Mode] Information Retrieval (GitHub Projects Catalog)\n\n"
+        yield "🔍 [GitHub Catalog] Discovering all GitHub projects for authenticated user...\n\n"
+        all_projects = list_projects()
+        remote_repos = [p for p in all_projects if p.get("has_remote")]
+        local_only = [p for p in all_projects if not p.get("has_remote")]
+
+        yield f"📁 Found {len(all_projects)} total projects ({len(remote_repos)} on GitHub, {len(local_only)} local workspace):\n\n"
+        for idx, p in enumerate(all_projects, 1):
+            name = p.get("name")
+            url = p.get("github_url", "")
+            desc = (p.get("description") or "").strip()
+            cloud_url = p.get("cloud_run_url")
+            vis = "🔒 Private" if p.get("is_private") else "🌐 Public"
+            status = "🐙 GitHub" if p.get("has_remote") else "💻 Local only"
+            desc_text = f" - {desc}" if desc else ""
+            yield f"{idx}. **[{name}]({url})** [{vis}] [{status}]{desc_text}\n"
+            if cloud_url:
+                yield f"   🚀 Live: {cloud_url}\n"
+
+        yield f"\n✅ Listed {len(all_projects)} projects. You can select any project to view files, make changes, or deploy.\n"
+        return
+
     is_info = is_info_retrieval_request(prompt)
+
 
     if project_name and project_name.strip():
         app_name = sanitize_project_name(project_name.strip())

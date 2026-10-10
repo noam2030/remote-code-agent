@@ -36,7 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onSelectProject({
       name,
       cloud_run_url: null,
-      github_url: `https://github.com/noam2030/remote-code-agent-output/tree/main/${name}`,
+      github_url: `https://github.com/noam2030/${name}`,
       has_remote: false,
       is_local: false,
       files: [],
@@ -144,6 +144,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 </div>
 
+                {proj.description && (
+                  <div
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-dim)',
+                      margin: '0.25rem 0 0.5rem 0',
+                      lineHeight: '1.25',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                    }}
+                  >
+                    {proj.description}
+                  </div>
+                )}
+
                 <div className="project-links">
                   {proj.cloud_run_url && (
                     <a
@@ -165,13 +183,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   >
                     🐙 GitHub
                   </a>
-                  <span className="project-tag tag-files">📄 {fileCount} files</span>
-                  <span className="project-tag tag-loc">
-                    📝 {proj.lines_of_code.toLocaleString()} LOC
-                  </span>
-                  <span className="project-tag tag-tokens">
-                    🪙 {proj.tokens_spent.toLocaleString()}
-                  </span>
+                  {proj.is_private && (
+                    <span className="project-tag tag-tokens" style={{ borderColor: '#f59e0b', color: '#f59e0b' }}>
+                      🔒 Private
+                    </span>
+                  )}
+                  {fileCount > 0 ? (
+                    <span className="project-tag tag-files">📄 {fileCount} files</span>
+                  ) : (
+                    <span className="project-tag tag-files">☁️ GitHub</span>
+                  )}
+                  {proj.lines_of_code > 0 && (
+                    <span className="project-tag tag-loc">
+                      📝 {proj.lines_of_code.toLocaleString()} LOC
+                    </span>
+                  )}
+                  {proj.tokens_spent > 0 && (
+                    <span className="project-tag tag-tokens">
+                      🪙 {proj.tokens_spent.toLocaleString()}
+                    </span>
+                  )}
                 </div>
               </div>
             )

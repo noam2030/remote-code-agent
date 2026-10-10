@@ -83,6 +83,7 @@ POLITE_PREFIX_PATTERNS = [
     r"^can\s+you\s+(?:please\s+)?",
     r"^could\s+you\s+(?:please\s+)?",
     r"^would\s+you\s+(?:please\s+)?",
+    r"^i\s+(?:just\s+)?(?:want|need|wish)\s+(?:that\s+)?(?:the\s+)?(?:remote-code-agent|agent|system|bot)\s+(?:will|to|should|can)\s+",
     r"^i\s+(?:just\s+)?(?:want|need|wish)\s+(?:you\s+)?to\s+",
     r"^i\s+would\s+like\s+(?:you\s+)?to\s+",
     r"^kindly\s+",
@@ -112,6 +113,23 @@ def strip_polite_prefixes(text: str) -> str:
     return cleaned
 
 
+def is_list_github_projects_request(prompt: str) -> bool:
+    """Checks whether the prompt is specifically asking to list GitHub projects or repositories."""
+    if not prompt or not prompt.strip():
+        return False
+    clean = prompt.strip().lower()
+    return bool(
+        re.search(
+            r"\b(?:list|show|display|get|view)\s+(?:all\s+)?(?:of\s+)?(?:my\s+)?(?:github\s+)?(?:projects|repos|repositories)\b",
+            clean,
+        )
+        or re.search(
+            r"\b(?:what\s+(?:are\s+)?(?:all\s+)?(?:my\s+)?(?:github\s+)?(?:projects|repos|repositories))\b",
+            clean,
+        )
+    )
+
+
 def is_info_retrieval_request(prompt: str) -> bool:
     """Determines whether a user prompt is strictly for retrieving info/inspection.
 
@@ -124,9 +142,14 @@ def is_info_retrieval_request(prompt: str) -> bool:
     raw = prompt.strip()
     clean = raw.lower().lstrip("\"'`# \t\n")
 
+    # If prompt explicitly asks to list/inspect user GitHub projects/repos
+    if is_list_github_projects_request(clean):
+        return True
+
     # If prompt explicitly mentions retrieve info / read only
     if re.search(r"\b(?:retrieve\s+info|only\s+info|read-?only|just\s+info|no\s+code)\b", clean):
         return True
+
 
     # Check for chained mutation instructions (e.g., "explain this and fix it")
     for conj_pattern in MUTATION_CONJUNCTIONS:

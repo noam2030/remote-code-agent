@@ -156,7 +156,33 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             self.assertIn("No code changes were made or published to GitHub", output)
             self.assertNotIn("Publishing generated code to project", output)
 
+    async def test_generate_code_stream_list_github_projects_catalog(self):
+        from unittest.mock import patch
+
+        mock_projects = [
+            {
+                "name": "sample-repo",
+                "description": "A sample repository",
+                "github_url": "https://github.com/noam2030/sample-repo",
+                "cloud_run_url": None,
+                "has_remote": True,
+                "is_private": False,
+            }
+        ]
+
+        with patch("remote_code_agent.services.code_creation.list_projects", return_value=mock_projects):
+            chunks = []
+            async for chunk in generate_code_stream("list all my github projects"):
+                chunks.append(chunk)
+
+            output = "".join(chunks)
+            self.assertIn("GitHub Projects Catalog", output)
+            self.assertIn("sample-repo", output)
+            self.assertIn("https://github.com/noam2030/sample-repo", output)
+            self.assertIn("A sample repository", output)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

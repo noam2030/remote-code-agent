@@ -13,6 +13,8 @@ from remote_code_agent.github_service import (
     ensure_git_config,
     get_authenticated_repo_url,
     get_github_env,
+    get_github_owner,
+    list_user_github_repositories,
     resolve_output_repo_full_name,
     sanitize_git_output,
 )
@@ -326,14 +328,35 @@ def list_remote_projects(
     target_repo: str | None = None,
     env: dict[str, str] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Discovers project directories and live URLs from the central GitHub output repository."""
+    """Discovers all GitHub projects/repositories belonging to the user, plus any in the output repository."""
     if env is None:
         env = get_github_env()
 
-    full_repo = resolve_output_repo_full_name(target_repo, env=env)
     projects: dict[str, dict[str, Any]] = {}
 
-    # Attempt to fetch README.md to parse live URLs
+    # 1. First, discover all repositories belonging to the authenticated GitHub user
+    try:
+        user_repos = list_user_github_repositories(env=env)
+        owner = get_github_owner(env)
+        for repo in user_repos:
+            name = repo.get("name")
+            if not name:
+                continue
+            repo_url = repo.get("url") or f"https://github.com/{owner}/{name}"
+            projects[name] = {
+                "name": name,
+                "description": repo.get("description") or "",
+                "github_url": repo_url,
+                "cloud_run_url": None,
+                "has_remote": True,
+                "is_private": repo.get("isPrivate", False),
+                "updated_at": repo.get("updatedAt"),
+            }
+    except Exception:
+        pass
+
+    # 2. Check the central output repository if configured to extract live URLs or legacy subdirectories
+    full_repo = resolve_output_repo_full_name(target_repo, env=env)
     readme_content = ""
     try:
         readme_res = subprocess.run(
@@ -352,7 +375,23 @@ def list_remote_projects(
 
     readme_metadata = parse_readme_projects(readme_content)
 
-    # Attempt to fetch directory listing via gh api
+    # Attach live URLs from README metadata
+    for name, meta in readme_metadata.items():
+        if name in projects:
+            if meta.get("cloud_run_url") and not projects[name].get("cloud_run_url"):
+                projects[name]["cloud_run_url"] = meta.get("cloud_run_url")
+            if meta.get("description") and not projects[name].get("description"):
+                projects[name]["description"] = meta.get("description")
+        elif not name.startswith(".") and name not in {"scripts", "tests"}:
+            projects[name] = {
+                "name": name,
+                "description": meta.get("description") or "",
+                "github_url": f"https://github.com/{full_repo}/tree/main/{name}",
+                "cloud_run_url": meta.get("cloud_run_url"),
+                "has_remote": True,
+            }
+
+    # Also check directory listing of central output repo if accessible
     try:
         contents_res = subprocess.run(
             ["gh", "api", f"repos/{full_repo}/contents", "-q", ".[] | {name: .name, type: .type}"],
@@ -376,9 +415,11 @@ def list_remote_projects(
                         and name
                         and not name.startswith(".")
                         and name not in {"scripts", "tests"}
+                        and name not in projects
                     ):
                         projects[name] = {
                             "name": name,
+                            "description": "",
                             "github_url": f"https://github.com/{full_repo}/tree/main/{name}",
                             "cloud_run_url": readme_metadata.get(name, {}).get("cloud_run_url"),
                             "has_remote": True,
@@ -387,16 +428,6 @@ def list_remote_projects(
                     continue
     except Exception:
         pass
-
-    # If gh api was unavailable or returned nothing, populate from readme_metadata
-    for name, meta in readme_metadata.items():
-        if name not in projects and not name.startswith(".") and name not in {"scripts", "tests"}:
-            projects[name] = {
-                "name": name,
-                "github_url": f"https://github.com/{full_repo}/tree/main/{name}",
-                "cloud_run_url": meta.get("cloud_run_url"),
-                "has_remote": True,
-            }
 
     return projects
 
@@ -433,6 +464,7 @@ def list_projects() -> list[dict[str, Any]]:
     full_repo = resolve_output_repo_full_name()
     remote_projects = list_remote_projects(target_repo=full_repo)
     local_projects = list_local_projects()
+    owner = get_github_owner()
 
     merged: dict[str, dict[str, Any]] = {}
 
@@ -440,10 +472,12 @@ def list_projects() -> list[dict[str, Any]]:
     for name, data in remote_projects.items():
         merged[name] = {
             "name": name,
-            "github_url": data.get("github_url", f"https://github.com/{full_repo}/tree/main/{name}"),
+            "description": data.get("description", ""),
+            "github_url": data.get("github_url", f"https://github.com/{owner}/{name}"),
             "cloud_run_url": data.get("cloud_run_url"),
             "has_remote": True,
             "is_local": False,
+            "is_private": data.get("is_private", False),
             "files": [],
             "files_count": 0,
             "files_detail": [],
@@ -466,10 +500,12 @@ def list_projects() -> list[dict[str, Any]]:
         else:
             merged[name] = {
                 "name": name,
-                "github_url": f"https://github.com/{full_repo}/tree/main/{name}",
+                "description": "",
+                "github_url": f"https://github.com/{owner}/{name}",
                 "cloud_run_url": None,
                 "has_remote": False,
                 "is_local": True,
+                "is_private": False,
                 "local_path": data.get("local_path"),
                 "files": data.get("files", []),
                 "files_count": data.get("files_count", 0),
@@ -483,16 +519,56 @@ def list_projects() -> list[dict[str, Any]]:
     return sorted(list(merged.values()), key=lambda p: p["name"])
 
 
+
 def sync_project_from_github(
     project_name: str,
     target_dir: str,
     target_repo: str | None = None,
 ) -> bool:
-    """Syncs existing project files from the GitHub repository into target_dir.
+    """Syncs existing project files from GitHub into target_dir.
 
+    1. First attempts to clone the dedicated GitHub repository (<owner>/<clean_name>).
+    2. If not found, falls back to cloning target_repo (<owner>/remote-code-agent-output).
     Returns True if project files were found and copied, False otherwise.
     """
     env = get_github_env()
+    owner = get_github_owner(env)
+    clean_name = sanitize_project_name(project_name)
+
+    # 1. Try dedicated project repository first
+    dedicated_repo = f"{owner}/{clean_name}"
+    dedicated_url = get_authenticated_repo_url(dedicated_repo, env=env)
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        res = subprocess.run(
+            ["git", "clone", "--depth", "1", dedicated_url, tmp_dir],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if res.returncode == 0 and os.listdir(tmp_dir):
+            os.makedirs(target_dir, exist_ok=True)
+            src_root = tmp_dir
+            sub_proj = os.path.join(tmp_dir, clean_name)
+            if os.path.isdir(sub_proj) and len([f for f in os.listdir(tmp_dir) if f != ".git"]) == 1:
+                src_root = sub_proj
+
+            copied_any = False
+            for item in os.listdir(src_root):
+                if item == ".git":
+                    continue
+                src_item = os.path.join(src_root, item)
+                dst_item = os.path.join(target_dir, item)
+                if os.path.isdir(src_item):
+                    shutil.copytree(src_item, dst_item, dirs_exist_ok=True)
+                    copied_any = True
+                else:
+                    shutil.copy2(src_item, dst_item)
+                    copied_any = True
+            if copied_any:
+                return True
+
+    # 2. Fallback to central output repo
     full_repo = resolve_output_repo_full_name(target_repo, env=env)
     repo_url = get_authenticated_repo_url(full_repo, env=env)
 
@@ -506,7 +582,7 @@ def sync_project_from_github(
         if res.returncode != 0:
             return False
 
-        src_proj = os.path.join(tmp_dir, project_name)
+        src_proj = os.path.join(tmp_dir, clean_name)
         if not os.path.isdir(src_proj):
             return False
 
@@ -542,10 +618,12 @@ def get_project_details(project_name: str) -> dict[str, Any] | None:
     if not has_local_files:
         sync_project_from_github(clean_name, local_dir)
 
+    owner = get_github_owner()
     all_projects = {p["name"]: p for p in list_projects()}
     project_info = all_projects.get(clean_name) or {
         "name": clean_name,
-        "github_url": f"https://github.com/{resolve_output_repo_full_name()}/tree/main/{clean_name}",
+        "description": "",
+        "github_url": f"https://github.com/{owner}/{clean_name}",
         "cloud_run_url": None,
         "has_remote": False,
         "is_local": os.path.isdir(local_dir),
@@ -580,14 +658,12 @@ def delete_project(
     delete_remote: bool = True,
     target_repo: str | None = None,
 ) -> tuple[bool, str]:
-    """Deletes a project locally and optionally from the central GitHub repository.
+    """Deletes a project locally and optionally from GitHub.
 
     1. Removes local project directory from BASE_WORKSPACE if it exists.
     2. If delete_remote=True:
-       - Clones the central repository to a temp directory.
-       - Removes the project directory with git rm -rf.
-       - Strips references to project_name from root README.md.
-       - Commits and pushes the deletion directly to main.
+       - Deletes dedicated GitHub repository (<owner>/<clean_name>) if present.
+       - Also cleans from central output repository if present.
     Returns (success, message).
     """
     clean_name = sanitize_project_name(project_name)
@@ -608,6 +684,23 @@ def delete_project(
         return False, f"GitHub authentication required to delete remote project: {auth_msg}"
 
     ensure_git_config(env)
+    owner = get_github_owner(env)
+    dedicated_repo = f"{owner}/{clean_name}"
+    remote_deleted = False
+
+    # 1. Attempt to delete dedicated repository
+    view_res = subprocess.run(["gh", "repo", "view", dedicated_repo], env=env, capture_output=True, text=True)
+    if view_res.returncode == 0:
+        del_res = subprocess.run(
+            ["gh", "repo", "delete", dedicated_repo, "--yes"],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if del_res.returncode == 0:
+            remote_deleted = True
+
+    # 2. Attempt to clean from central output repository if configured
     full_repo = resolve_output_repo_full_name(target_repo, env=env)
     repo_url = get_authenticated_repo_url(full_repo, env=env)
 
@@ -619,67 +712,59 @@ def delete_project(
             capture_output=True,
             text=True,
         )
-        if clone_res.returncode != 0:
-            err_msg = sanitize_git_output(clone_res.stderr).strip()
-            if local_existed:
-                return True, f"Project '{clean_name}' deleted locally, but could not connect to GitHub: {err_msg}"
-            return False, f"Failed to connect to GitHub repository: {err_msg}"
+        if clone_res.returncode == 0:
+            proj_path = os.path.join(repo_dir, clean_name)
+            remote_existed = os.path.isdir(proj_path)
 
-        proj_path = os.path.join(repo_dir, clean_name)
-        remote_existed = os.path.isdir(proj_path)
+            root_readme = os.path.join(repo_dir, "README.md")
+            readme_changed = False
+            if os.path.exists(root_readme):
+                with open(root_readme, "r", encoding="utf-8") as f:
+                    content = f.read()
 
-        # Update root README.md to remove project line
-        root_readme = os.path.join(repo_dir, "README.md")
-        readme_changed = False
-        if os.path.exists(root_readme):
-            with open(root_readme, "r", encoding="utf-8") as f:
-                content = f.read()
+                new_lines = []
+                for line in content.splitlines():
+                    if f"[{clean_name}]" in line or f"./{clean_name}/" in line:
+                        readme_changed = True
+                        continue
+                    new_lines.append(line)
 
-            new_lines = []
-            for line in content.splitlines():
-                if f"[{clean_name}]" in line or f"./{clean_name}/" in line:
-                    readme_changed = True
-                    continue
-                new_lines.append(line)
+                if readme_changed:
+                    with open(root_readme, "w", encoding="utf-8") as f:
+                        f.write("\n".join(new_lines) + "\n")
+
+            if remote_existed:
+                subprocess.run(["git", "rm", "-rf", clean_name], cwd=repo_dir, env=env, check=False)
 
             if readme_changed:
-                with open(root_readme, "w", encoding="utf-8") as f:
-                    f.write("\n".join(new_lines) + "\n")
+                subprocess.run(["git", "add", "README.md"], cwd=repo_dir, env=env, check=False)
 
-        if not remote_existed and not readme_changed:
-            if local_existed:
-                return True, f"Project '{clean_name}' deleted from local workspace (was not present on GitHub)."
-            return True, f"Project '{clean_name}' does not exist locally or on GitHub."
+            if remote_existed or readme_changed:
+                subprocess.run(["git", "config", "user.name", "Remote Code Agent"], cwd=repo_dir, env=env, check=True)
+                subprocess.run(["git", "config", "user.email", "agent@remote-code-agent.local"], cwd=repo_dir, env=env, check=True)
+                subprocess.run(
+                    ["git", "commit", "-m", f"chore(delete): remove project {clean_name}"],
+                    cwd=repo_dir,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                )
+                push_res = subprocess.run(
+                    ["git", "push", "origin", "main"],
+                    cwd=repo_dir,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                )
+                if push_res.returncode == 0:
+                    remote_deleted = True
 
-        if remote_existed:
-            subprocess.run(["git", "rm", "-rf", clean_name], cwd=repo_dir, env=env, check=False)
+    if remote_deleted:
+        return True, f"Project '{clean_name}' successfully deleted locally and from GitHub."
 
-        if readme_changed:
-            subprocess.run(["git", "add", "README.md"], cwd=repo_dir, env=env, check=False)
+    if local_existed:
+        return True, f"Project '{clean_name}' deleted from local workspace (was not present on GitHub)."
 
-        # Configure git user
-        subprocess.run(["git", "config", "user.name", "Remote Code Agent"], cwd=repo_dir, env=env, check=True)
-        subprocess.run(["git", "config", "user.email", "agent@remote-code-agent.local"], cwd=repo_dir, env=env, check=True)
+    return True, f"Project '{clean_name}' does not exist locally or on GitHub."
 
-        commit_res = subprocess.run(
-            ["git", "commit", "-m", f"chore(delete): remove project {clean_name}"],
-            cwd=repo_dir,
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-
-        push_res = subprocess.run(
-            ["git", "push", "origin", "main"],
-            cwd=repo_dir,
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-
-        if push_res.returncode != 0:
-            err_msg = sanitize_git_output(push_res.stderr).strip()
-            return False, f"Failed to push deletion to GitHub: {err_msg}"
-
-        return True, f"Project '{clean_name}' successfully deleted locally and from GitHub ({full_repo})."
 
