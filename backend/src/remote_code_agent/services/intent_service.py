@@ -83,6 +83,7 @@ POLITE_PREFIX_PATTERNS = [
     r"^can\s+you\s+(?:please\s+)?",
     r"^could\s+you\s+(?:please\s+)?",
     r"^would\s+you\s+(?:please\s+)?",
+    r"^i\s+(?:just\s+)?(?:want|need|wish)\s+(?:that\s+)?(?:the\s+)?(?:remote-code-agent|agent|system|bot)\s+(?:will|to|should|can)\s+",
     r"^i\s+(?:just\s+)?(?:want|need|wish)\s+(?:you\s+)?to\s+",
     r"^i\s+would\s+like\s+(?:you\s+)?to\s+",
     r"^kindly\s+",
@@ -127,6 +128,7 @@ def is_info_retrieval_request(prompt: str) -> bool:
     # If prompt explicitly mentions retrieve info / read only
     if re.search(r"\b(?:retrieve\s+info|only\s+info|read-?only|just\s+info|no\s+code)\b", clean):
         return True
+
 
     # Check for chained mutation instructions (e.g., "explain this and fix it")
     for conj_pattern in MUTATION_CONJUNCTIONS:

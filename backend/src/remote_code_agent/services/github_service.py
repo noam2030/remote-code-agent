@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from typing import Any
 
 from remote_code_agent.config import GITHUB_OUTPUT_REPO, load_env_file
 
@@ -110,6 +111,101 @@ def sanitize_git_output(text: str) -> str:
     if not text:
         return ""
     return re.sub(r"https://[^@]+@", "https://", text)
+
+
+def list_user_github_repositories(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    """Lists all repositories for the authenticated user using GitHub CLI with API fallback."""
+    if env is None:
+        env = get_github_env()
+    repos: list[dict[str, Any]] = []
+
+    # 1. Try gh repo list with JSON format
+    try:
+        res = subprocess.run(
+            [
+                "gh",
+                "repo",
+                "list",
+                "--limit",
+                "100",
+                "--json",
+                "name,description,url,updatedAt,visibility,isPrivate,isFork",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            import json
+
+            data = json.loads(res.stdout)
+            if isinstance(data, list):
+                return data
+    except Exception:
+        pass
+
+    # 2. Try gh api user/repos
+    try:
+        res = subprocess.run(
+            ["gh", "api", "user/repos?per_page=100&sort=updated", "--jq", "."],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            import json
+
+            data = json.loads(res.stdout)
+            if isinstance(data, list):
+                for item in data:
+                    repos.append({
+                        "name": item.get("name"),
+                        "description": item.get("description") or "",
+                        "url": item.get("html_url"),
+                        "updatedAt": item.get("updated_at"),
+                        "visibility": "PRIVATE" if item.get("private") else "PUBLIC",
+                        "isPrivate": bool(item.get("private")),
+                        "isFork": bool(item.get("fork")),
+                    })
+                return repos
+    except Exception:
+        pass
+
+    # 3. Direct HTTP request with token fallback if gh command unavailable
+    token = env.get("GH_TOKEN") or env.get("GITHUB_TOKEN")
+    if token:
+        try:
+            import json
+            import urllib.request
+
+            req = urllib.request.Request(
+                "https://api.github.com/user/repos?per_page=100&sort=updated",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github.v3+json",
+                    "User-Agent": "remote-code-agent",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+                if isinstance(data, list):
+                    for item in data:
+                        repos.append({
+                            "name": item.get("name"),
+                            "description": item.get("description") or "",
+                            "url": item.get("html_url"),
+                            "updatedAt": item.get("updated_at"),
+                            "visibility": "PRIVATE" if item.get("private") else "PUBLIC",
+                            "isPrivate": bool(item.get("private")),
+                            "isFork": bool(item.get("fork")),
+                        })
+                    return repos
+        except Exception:
+            pass
+
+    return repos
 
 
 def push_to_dedicated_project_repo(

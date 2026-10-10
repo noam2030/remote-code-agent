@@ -88,19 +88,55 @@ class TestProjectService(unittest.TestCase):
             self.assertTrue(success)
             self.assertTrue(os.path.exists(os.path.join(target_dir, "main.py")))
 
+    @patch("remote_code_agent.services.project_service.list_user_github_repositories")
+    def test_list_remote_projects_discovers_user_repos(self, mock_user_repos):
+        from remote_code_agent.services.project_service import list_remote_projects
+
+        mock_user_repos.return_value = [
+            {
+                "name": "task-manager",
+                "description": "A task manager app",
+                "url": "https://github.com/noam2030/task-manager",
+                "updatedAt": "2026-10-09T10:37:15Z",
+                "visibility": "PUBLIC",
+                "isPrivate": False,
+                "isFork": False,
+            },
+            {
+                "name": "secret-tool",
+                "description": "Internal tool",
+                "url": "https://github.com/noam2030/secret-tool",
+                "updatedAt": "2026-10-08T12:00:00Z",
+                "visibility": "PRIVATE",
+                "isPrivate": True,
+                "isFork": False,
+            },
+        ]
+        projects = list_remote_projects()
+        self.assertIn("task-manager", projects)
+        self.assertIn("secret-tool", projects)
+        self.assertEqual(projects["task-manager"]["github_url"], "https://github.com/noam2030/task-manager")
+        self.assertEqual(projects["task-manager"]["description"], "A task manager app")
+        self.assertTrue(projects["secret-tool"]["is_private"])
+
     @patch("remote_code_agent.services.project_service.list_remote_projects")
     def test_list_projects_combines_remote_and_local(self, mock_remote):
         mock_remote.return_value = {
             "remote-only-app": {
                 "name": "remote-only-app",
-                "github_url": "https://github.com/noam2030/remote-code-agent-output/tree/main/remote-only-app",
+                "description": "An app on github",
+                "github_url": "https://github.com/noam2030/remote-only-app",
                 "cloud_run_url": "https://remote-only-app.a.run.app",
                 "has_remote": True,
+                "is_private": False,
             }
         }
         projects = list_projects()
         names = [p["name"] for p in projects]
         self.assertIn("remote-only-app", names)
+        remote_proj = next(p for p in projects if p["name"] == "remote-only-app")
+        self.assertEqual(remote_proj["description"], "An app on github")
+        self.assertEqual(remote_proj["github_url"], "https://github.com/noam2030/remote-only-app")
 
     def test_delete_project_local_only(self):
         test_proj = "test-delete-local-app"

@@ -10,6 +10,7 @@ from google.antigravity.hooks import policy
 from remote_code_agent.github_service import derive_project_slug, publish_project_to_github
 from remote_code_agent.project_service import (
     inspect_project_files,
+    list_projects,
     record_project_run_tokens,
     sanitize_project_name,
     sync_project_from_github,
@@ -19,6 +20,7 @@ from remote_code_agent.services.intent_service import (
     detect_project_from_prompt,
     is_info_retrieval_request,
 )
+
 
 # Dedicated workspace directory for agent-generated projects
 BASE_WORKSPACE = os.path.abspath(os.environ.get("AGENT_WORKSPACE", "workspace"))
@@ -92,11 +94,12 @@ def get_info_retrieval_agent_config(
     return google.antigravity.LocalAgentConfig(
         system_instructions=(
             f"You are an expert software engineer and code analyst inspecting the project '{target_name}'. "
+            "You have access to the user's GitHub projects via GitHub CLI (`gh repo list`, `gh repo view`) and local workspace files. "
             "The user is asking an informational query to inspect files, understand the architecture, or answer questions. "
             "CRITICAL CONSTRAINTS:\n"
             "- Do NOT create, write, modify, or delete any files or directories in the workspace.\n"
             "- Do NOT write code to disk or execute commands that alter the repository.\n"
-            "- Read and inspect existing workspace files as needed to answer the user's question accurately.\n"
+            "- Read and inspect existing workspace files or run read-only commands as needed to answer the user's question accurately.\n"
             "- Provide a direct, thorough, and well-structured answer in your response text in the console."
         ),
         workspaces=[project_dir],
@@ -112,8 +115,8 @@ async def generate_code_stream(
 
     1. Classifies user intent (information retrieval vs. code creation/modification).
     2. Determines target project: uses project_name if provided, detects from prompt, or derives slug.
-    3. Ensures isolated workspace directory exists for this project.
-    4. Syncs existing project codebase from GitHub if available and directory is empty.
+    3. Ensures isolated workspace directory exists for this project (/workspace/<project_name>).
+    4. Syncs existing project codebase from GitHub (clones into workspace or pulls latest if present).
     5. If info retrieval:
        - Runs read-only agent to inspect files and answer the question.
        - Does NOT update prompt.txt.
@@ -122,8 +125,8 @@ async def generate_code_stream(
        - Replies directly in the console stream.
     6. If code creation:
        - Consolidates prompt.txt specification.
-       - Runs code generation agent to implement requested changes.
-       - Automatically commits and publishes the generated project to GitHub main.
+       - Runs code generation agent to implement requested changes in /workspace/<project_name>.
+       - Automatically commits and publishes the generated/updated project to GitHub main.
     """
     is_info = is_info_retrieval_request(prompt)
 
@@ -155,13 +158,29 @@ async def generate_code_stream(
     project_dir = os.path.join(BASE_WORKSPACE, app_name)
     os.makedirs(project_dir, exist_ok=True)
 
-    # If the local directory has no files, sync existing project files from GitHub if available
+    # Sync project codebase from GitHub into workspace/<app_name>
     has_local_files = any(not f.startswith(".") for f in os.listdir(project_dir))
     if not has_local_files:
         try:
             synced = sync_project_from_github(app_name, project_dir)
             if synced:
-                yield f"📥 [Project: {app_name}] Synced existing codebase from GitHub repository.\n"
+                yield f"📥 [Project: {app_name}] Cloned repository into workspace from GitHub.\n"
+        except Exception:
+            pass
+    elif os.path.isdir(os.path.join(project_dir, ".git")):
+        try:
+            import subprocess
+            from remote_code_agent.github_service import get_github_env
+            pull_res = subprocess.run(
+                ["git", "pull", "--rebase", "origin", "main"],
+                cwd=project_dir,
+                env=get_github_env(),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if pull_res.returncode == 0:
+                yield f"🔄 [Project: {app_name}] Pulled latest changes from GitHub repository.\n"
         except Exception:
             pass
 

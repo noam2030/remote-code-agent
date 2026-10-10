@@ -156,7 +156,46 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             self.assertIn("No code changes were made or published to GitHub", output)
             self.assertNotIn("Publishing generated code to project", output)
 
+    async def test_generate_code_stream_syncs_from_github_if_not_local(self):
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_sync = MagicMock(return_value=True)
+        mock_update = AsyncMock()
+        mock_publish = MagicMock(return_value=(True, "https://github.com/noam2030/remote-target-repo"))
+
+        class MockAgentCM:
+            def __init__(self, config):
+                self.config = config
+            async def __aenter__(self):
+                mock_agent = AsyncMock()
+                mock_resp = MagicMock()
+                mock_resp.usage_metadata = None
+                async def text_chunks():
+                    yield types.Text(step_index=0, text="Code implemented.")
+                mock_resp.chunks = text_chunks()
+                mock_agent.chat.return_value = mock_resp
+                return mock_agent
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        with patch("remote_code_agent.services.code_creation.sync_project_from_github", mock_sync), \
+             patch("remote_code_agent.services.code_creation.update_project_master_prompt", mock_update), \
+             patch("remote_code_agent.services.code_creation.Agent", MockAgentCM), \
+             patch("remote_code_agent.services.code_creation.publish_project_to_github", mock_publish):
+
+            chunks = []
+            async for chunk in generate_code_stream("add user authentication", project_name="remote-target-repo"):
+                chunks.append(chunk)
+
+            output = "".join(chunks)
+            mock_sync.assert_called_once()
+            mock_publish.assert_called_once()
+            self.assertIn("remote-target-repo", output)
+            self.assertIn("Cloned repository into workspace from GitHub", output)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
 

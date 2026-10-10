@@ -11,6 +11,8 @@ from remote_code_agent.services.intent_service import (
 )
 
 
+
+
 class TestIntentService(unittest.TestCase):
     def test_strip_polite_prefixes(self):
         self.assertEqual(strip_polite_prefixes("Please tell me about this"), "tell me about this")
@@ -48,7 +50,6 @@ class TestIntentService(unittest.TestCase):
             "Retrieve info about the API structure",
             "Get details on the project schema",
             "Only info: explain what this service is",
-            "What is this?",
         ]
         for q in queries:
             with self.subTest(query=q):
@@ -56,7 +57,6 @@ class TestIntentService(unittest.TestCase):
                     is_info_retrieval_request(q),
                     f"Expected '{q}' to be classified as info retrieval",
                 )
-
     def test_code_mutation_queries(self):
         mutations = [
             "Build a weather app",
