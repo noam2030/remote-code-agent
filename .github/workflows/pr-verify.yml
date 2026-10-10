@@ -6,7 +6,7 @@ on:
 
 jobs:
   test-backend:
-    name: Run Automated Tests (Backend)
+    name: Run Automated Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
