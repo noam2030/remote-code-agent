@@ -140,6 +140,9 @@ The application relies on the following environment variables:
 - `GITHUB_OUTPUT_REPO`: Default GitHub repository name for central output catalog.
 - `GCP_OUTPUT_PROJECT_ID`: Target Google Cloud Project ID (`ai-learning-499409`).
 - `VERCEL_SCOPE`: Target Vercel team/scope for deployments (`noam-projects2`).
+- `VERCEL_TOKEN`: Vercel personal access token for automated frontend CI/CD deployments.
+- `VERCEL_ORG_ID`: Vercel Team ID (`team_abCCfq6oAKpFKOLdLU0hsGg5`).
+- `VERCEL_PROJECT_ID`: Vercel Project ID (`prj_Fm0oEgq70AJyuyhn3iFuLEgoJ3Hu`).
 - `PORT`: HTTP port for backend server (default: `8080`).
 - `CORS_ORIGINS`: Comma-separated list of allowed origins.
 - `FRONTEND_URL`: URL of the deployed frontend application (`https://remote-code-agent-ui.vercel.app`).
@@ -148,6 +151,7 @@ The application relies on the following environment variables:
 ## 11. Testing
 - Automated unit and integration tests are placed in `backend/tests/`.
 - Test execution command: `.venv/bin/python -m unittest discover tests`.
+- Frontend build validation: `npm run build` executed in `frontend/`.
 - Covered test modules:
   - `test_api_routes.py`: REST endpoint verification.
   - `test_code_creation.py`: Agent execution, repository clone/pull, streaming behavior, and dedicated GitHub pushing.
@@ -156,18 +160,31 @@ The application relies on the following environment variables:
   - `test_project_service.py`: GitHub repository catalog discovery, workspace scanning, dedicated repo sync, and cleanup.
   - `test_prompt_service.py`: `prompt.txt` manipulation.
   - `test_server.py`: FastAPI application startup and CORS verification.
+  - `test_ci_workflows.py`: Verification of CI/CD workflow definitions, trigger configurations, and security secret requirements.
 
 ## 12. Deployment
-- **Target Platform**: Google Cloud Run (Fully managed serverless).
+- **Target Backend Platform**: Google Cloud Run (Fully managed serverless).
 - **Target Project**: `ai-learning-499409`.
 - **Region**: `us-central1`.
-- **Production Service Name**: `remote-code-agent`.
+- **Production Backend Service Name**: `remote-code-agent`.
 - **Production Backend URL**: `https://remote-code-agent-289332143182.us-central1.run.app`.
-- **Staging Service Name**: `remote-code-agent-staging`.
-- **Frontend Hosting**: Vercel (`https://remote-code-agent-ui.vercel.app`), configured with `VITE_API_URL=https://remote-code-agent-289332143182.us-central1.run.app`.
+- **Staging Backend Service Name**: `remote-code-agent-staging`.
+- **Frontend Target Platform**: Vercel (`https://remote-code-agent-ui.vercel.app`), configured with `VITE_API_URL=https://remote-code-agent-289332143182.us-central1.run.app`.
 - **Container Build**: Docker build from root `Dockerfile` using Python 3.11-slim, installing Git, GitHub CLI, and dependencies.
 - **Port**: Container listens on port `8080`.
 - **Access**: Unauthenticated invocations enabled (`--allow-unauthenticated`).
-- **CI/CD Workflow**:
-  - Pull requests trigger `.github/workflows/pr-staging.yml` (tests + staging deployment).
-  - Merges to `main` trigger `.github/workflows/deploy-prod.yml` (tests + production deployment).
+- **CI/CD Architecture**:
+  - **Pull Request Verification (`.github/workflows/pr-verify.yml`)**:
+    - Triggered on pull requests targeting `main`.
+    - Runs backend unit test suite and frontend build verification.
+    - Does NOT automatically deploy to staging.
+  - **Optional On-Demand Staging Deployment (`.github/workflows/deploy-staging.yml`)**:
+    - Triggered manually on demand via GitHub Actions UI (`workflow_dispatch`).
+    - Deploys the API to Google Cloud Run staging (`remote-code-agent-staging`).
+    - Deploys the Frontend to Vercel preview/staging if `VERCEL_TOKEN` is configured.
+  - **Production Deployment (`.github/workflows/deploy-prod.yml`)**:
+    - Triggered automatically on push / merge to `main`.
+    - Runs backend automated tests and frontend build validation.
+    - Deploys backend API to Google Cloud Run production (`remote-code-agent`).
+    - Deploys frontend UI to Vercel production (`--prod`) targeting the project scope and setting `VITE_API_URL` to the production backend URL.
+

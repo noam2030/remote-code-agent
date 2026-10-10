@@ -11,3 +11,9 @@
 11. confirm
 12. update the pull request. " 1. Checks if prompt is asking to list GitHub projects/repositories; if so, formats and streams catalog." it is not subject to prompt or ask. this is the part of the application. the webpage load the reposiroty and th euser select on which project to work, to create new repository, or delete one. once the user select the repository and ask to write new code or update the code - the app will clone the project into /workspace dir will wimplement the code and push to github
 13. confirm
+14. merge
+15. make the deploy to staging anoption, so i will be able, if wanted to click in gitgub link and deploy to ataging (both the api and ui). also, why i did not see any deployment to vercel after merge to main?
+16. no. you did understand me. i want 1- make the staging deployment optional, only if i click in the github ui. 2 - when i confirm to merge to main - a the github action should deploy the api to google cloud and the forntend to vercel
+17. y
+18. confirm
+19. merge
