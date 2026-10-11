@@ -45,6 +45,7 @@
 45. merge
 46. when a project deploy to vercel - it should be to a project name as the project name plus -ui for example hello-ui, the backend deployment should be hello-api
 47. confirm
+48. confirm
 
 
 
