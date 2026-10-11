@@ -59,6 +59,8 @@ ERROR: (gcloud.run.deploy) spec.template.spec.containers[0].env: The following r
 Error: Process completed with exit code 1.
 54. why do you need number 3 if you tell the agent to not use this variable?
 55. confirm
+56. merge
+
 
 
 
