@@ -76,6 +76,8 @@ class TestPromptService(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Google Cloud Run", prompt)
         self.assertIn("Firestore", prompt)
         self.assertIn("chat-stream", prompt)
+        self.assertIn("never pass PORT in --set-env-vars", prompt)
+        self.assertIn("--port 8080", prompt)
 
     def test_synthesize_prompts_fallback_incremental(self):
         initial = (

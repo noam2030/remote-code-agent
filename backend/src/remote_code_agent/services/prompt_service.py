@@ -87,7 +87,7 @@ def synthesize_prompts_fallback(
             "- Implement an interactive web interface or HTTP API with clean architecture.\n"
             "- Ensure deployment compatibility with Google Cloud Run (listen on 0.0.0.0:$PORT, default 8080).\n"
             f"- Any persistent data for the app must be stored in Google Cloud Firestore (project 'ai-learning-499409') as a dedicated collection named '{app_name}'.\n"
-            "- If deployment is requested, generate GitHub Actions workflows targeting Google Cloud project 'ai-learning-499409' or Vercel 'noam-projects2'.\n"
+            f"- If deployment is requested, generate GitHub Actions workflows targeting Google Cloud project 'ai-learning-499409' (service name '{app_name}-api'; never pass PORT in --set-env-vars or --update-env-vars as PORT is reserved by Cloud Run, use --port 8080) or Vercel 'noam-projects2' (project name '{app_name}-ui').\n"
             "- Provide automated tests in tests/ and a comprehensive README.md.\n"
         )
 
@@ -133,7 +133,7 @@ async def synthesize_master_prompt_with_ai(
             "endpoints, styling, and refinements included.\n"
             "2. Ensure any requirement for persistent application data is captured as requiring storage in Google Cloud Firestore "
             f"(project 'ai-learning-499409') under a dedicated collection named '{app_name}'.\n"
-            "3. If deployment is requested, capture requirements to add GitHub Actions deployment workflows for Google Cloud project 'ai-learning-499409' or Vercel 'noam-projects2'.\n"
+            f"3. If deployment is requested, capture requirements to add GitHub Actions deployment workflows for Google Cloud project 'ai-learning-499409' (service name '{app_name}-api'; never set PORT in --set-env-vars or --update-env-vars on Cloud Run, use --port 8080) or Vercel 'noam-projects2' (project name '{app_name}-ui').\n"
             "4. Seamlessly merge all requirements. If the new prompt modifies, refines, or supersedes an earlier instruction, "
             "update that requirement rather than repeating contradictory instructions.\n"
             "5. Do NOT output conversational greetings, preamble, or wrapping markdown code fences (```). "

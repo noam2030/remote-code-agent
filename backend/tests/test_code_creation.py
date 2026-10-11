@@ -54,6 +54,9 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Do NOT create virtual environments", config.system_instructions)
         self.assertIn("Do NOT run git or gh commands", config.system_instructions)
 
+        self.assertIn("PORT is a reserved environment variable automatically injected by Cloud Run", config.system_instructions)
+        self.assertIn("--port 8080", config.system_instructions)
+
     def test_agent_config_with_app_name(self):
         test_dir = os.path.join(BASE_WORKSPACE, "test-unit-custom")
         config = get_agent_config(test_dir, app_name="custom-project-name")
@@ -61,6 +64,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         self.assertIn("custom-project-name-api", config.system_instructions)
         self.assertIn("custom-project-name-ui", config.system_instructions)
         self.assertIn("Google Cloud Run", config.system_instructions)
+        self.assertIn("PORT is a reserved environment variable automatically injected by Cloud Run", config.system_instructions)
         self.assertIn("Google Cloud Firestore", config.system_instructions)
         self.assertIn("ai-learning-499409", config.system_instructions)
         self.assertIn("noam-projects2", config.system_instructions)
