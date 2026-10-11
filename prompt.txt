@@ -72,6 +72,7 @@ Error: Process completed with exit code 1.
 66. merge
 67. remove the deletion option totally
 68. confirm
+69. merge
 
 
 
