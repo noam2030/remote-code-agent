@@ -69,6 +69,7 @@ Error: Process completed with exit code 1.
 63. merge
 64. the deletion of project doent work
 65. confirm
+66. merge
 
 
 
