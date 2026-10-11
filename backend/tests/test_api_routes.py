@@ -63,6 +63,25 @@ class TestApiRoutes(unittest.TestCase):
             self.assertEqual(data["file_path"], "main.py")
             self.assertEqual(data["lines"], 1)
 
+    def test_get_active_run_endpoint(self):
+        response = self.client.get("/api/runs/active")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("active", data)
+        self.assertIn("status", data)
+        self.assertIn("logs", data)
+
+    def test_get_active_run_stream_404_no_run(self):
+        from remote_code_agent.services.run_manager import run_manager
+        orig_run = run_manager.current_run
+        try:
+            run_manager.current_run = None
+            response = self.client.get("/api/runs/active/stream")
+            self.assertEqual(response.status_code, 404)
+        finally:
+            run_manager.current_run = orig_run
+
 
 if __name__ == "__main__":
     unittest.main()
+

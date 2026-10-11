@@ -95,6 +95,32 @@ async def api_get_project_file(project_name: str, file_path: str):
 
 
 
+from remote_code_agent.services.run_manager import RunAlreadyInProgressError, run_manager
+
+
+@app.get("/api/runs/active")
+async def api_get_active_run():
+    """Returns active or latest run status and accumulated logs."""
+    return run_manager.get_active_run()
+
+
+@app.get("/api/runs/active/stream")
+async def api_stream_active_run(
+    offset: int = Query(0, ge=0, description="Character offset to start streaming from")
+):
+    """Streaming endpoint to connect/re-attach to the ongoing or latest run."""
+    if not run_manager.current_run:
+        raise HTTPException(status_code=404, detail="No active or recent run found")
+    return StreamingResponse(
+        run_manager.stream_run(offset=offset),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 # Backward-compatible direct /generate and /run routes
 @app.get("/generate")
 @app.get("/api/generate")
@@ -103,10 +129,18 @@ async def generate_legacy_get(
     project_name: str | None = Query(
         None, description="Optional target project name to create or update"
     ),
+    offset: int = Query(0, ge=0, description="Optional character offset"),
 ):
     """Streaming endpoint for autonomous code generation (GET)."""
+    try:
+        active_run = run_manager.start_run(
+            prompt, project_name=project_name, generator_fn=generate_code_stream
+        )
+    except RunAlreadyInProgressError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
     return StreamingResponse(
-        generate_code_stream(prompt, project_name=project_name),
+        run_manager.stream_run(active_run.run_id, offset=offset),
         media_type="text/plain; charset=utf-8",
         headers={
             "Cache-Control": "no-cache, no-transform",
@@ -139,13 +173,21 @@ async def run(
     if not prompt_text or not prompt_text.strip():
         raise HTTPException(status_code=400, detail="Prompt text cannot be empty.")
 
+    try:
+        active_run = run_manager.start_run(
+            prompt_text, project_name=target_project, generator_fn=generate_code_stream
+        )
+    except RunAlreadyInProgressError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
     headers = {
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-cache, no-transform",
         "X-Accel-Buffering": "no",
         "Connection": "keep-alive",
     }
     return StreamingResponse(
-        generate_code_stream(prompt_text, project_name=target_project),
-        media_type="text/plain",
+        run_manager.stream_run(active_run.run_id),
+        media_type="text/plain; charset=utf-8",
         headers=headers,
     )
+

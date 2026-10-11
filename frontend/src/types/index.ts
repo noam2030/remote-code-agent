@@ -42,3 +42,15 @@ export interface FileContentResponse {
   is_binary: boolean
   content: string | null
 }
+
+export interface ActiveRunResponse {
+  active: boolean
+  run_id: string | null
+  project_name: string | null
+  prompt: string | null
+  status: 'idle' | 'running' | 'completed' | 'error' | 'cancelled'
+  logs: string
+  started_at: number | null
+  completed_at: number | null
+}
+

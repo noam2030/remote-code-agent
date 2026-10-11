@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
   generateCodeStream,
+  getActiveRun,
   getFileContent,
   getProject,
   listProjects,
+  streamActiveRun,
 } from './services/api'
 import type { FileContentResponse, Project } from './types'
 
@@ -53,20 +55,160 @@ export function App() {
         }
       } else {
         setProjects(data)
-        if (data.length > 0) {
-          handleSelectProject(data[0])
-        }
       }
+      return data
     } catch (err: any) {
       showToast(`Error fetching projects: ${err.message}`)
+      return []
     } finally {
       setLoadingProjects(false)
     }
   }
 
   useEffect(() => {
-    fetchProjects()
+    let isCancelled = false
+
+    const init = async () => {
+      setLoadingProjects(true)
+      let data: Project[] = []
+      try {
+        data = await listProjects()
+        if (!isCancelled) {
+          setProjects(data)
+        }
+      } catch (err: any) {
+        showToast(`Error fetching projects: ${err.message}`)
+      } finally {
+        if (!isCancelled) {
+          setLoadingProjects(false)
+        }
+      }
+
+      // Check for active or recently finished background run
+      try {
+        const run = await getActiveRun()
+        if (isCancelled) return
+
+        if (run && run.status === 'running') {
+          setIsGenerating(true)
+          if (run.logs) {
+            setStreamLogs(run.logs)
+          }
+
+          if (run.project_name) {
+            const found = data.find(
+              (p) => p.name.toLowerCase() === run.project_name?.toLowerCase()
+            )
+            if (found) {
+              handleSelectProject(found)
+            } else {
+              setSelectedProject({
+                name: run.project_name,
+                github_url: `https://github.com/noam2030/${run.project_name}`,
+                cloud_run_url: null,
+                vercel_url: null,
+                has_remote: true,
+                is_local: true,
+                files: [],
+                files_detail: [],
+                lines_of_code: 0,
+                tokens_spent: 0,
+                files_count: 0,
+                stats: {},
+              })
+            }
+          }
+
+          showToast(`Connected to active run for project '${run.project_name || 'current'}'`)
+
+          try {
+            await streamActiveRun(run.logs ? run.logs.length : 0, (chunk) => {
+              if (!isCancelled) {
+                setStreamLogs((prev) => prev + chunk)
+              }
+            })
+            if (!isCancelled) {
+              showToast('Code generation finished!')
+              fetchProjects()
+            }
+          } catch (streamErr: any) {
+            console.error('Active stream error:', streamErr)
+          } finally {
+            if (!isCancelled) {
+              setIsGenerating(false)
+            }
+          }
+          return
+        } else if (run && run.status === 'completed' && run.logs) {
+          setStreamLogs(run.logs)
+          if (run.project_name) {
+            const found = data.find(
+              (p) => p.name.toLowerCase() === run.project_name?.toLowerCase()
+            )
+            if (found) {
+              handleSelectProject(found)
+              return
+            }
+          }
+        }
+      } catch {
+        // Active run check failed or endpoint unavailable
+      }
+
+      if (data.length > 0) {
+        handleSelectProject(data[0])
+      }
+    }
+
+    init()
+
+    return () => {
+      isCancelled = true
+    }
   }, [])
+
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && !isGenerating) {
+        try {
+          const run = await getActiveRun()
+          if (run && run.status === 'running') {
+            setIsGenerating(true)
+            if (run.logs) {
+              setStreamLogs(run.logs)
+            }
+            if (run.project_name) {
+              const found = projects.find(
+                (p) => p.name.toLowerCase() === run.project_name?.toLowerCase()
+              )
+              if (found) {
+                handleSelectProject(found)
+              }
+            }
+            try {
+              await streamActiveRun(run.logs ? run.logs.length : 0, (chunk) => {
+                setStreamLogs((prev) => prev + chunk)
+              })
+              showToast('Code generation finished!')
+              fetchProjects()
+            } catch (err: any) {
+              console.error('Stream error:', err)
+            } finally {
+              setIsGenerating(false)
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [isGenerating, projects])
+
 
   const handleSelectProject = async (proj: Project | null) => {
     setSelectedProject(proj)

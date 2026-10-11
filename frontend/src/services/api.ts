@@ -1,4 +1,5 @@
-import type { FileContentResponse, Project, ProjectDetail } from '../types'
+import type { ActiveRunResponse, FileContentResponse, Project, ProjectDetail } from '../types'
+
 
 const STORAGE_KEY_BACKEND = 'rca_backend_url'
 export const DEFAULT_PRODUCTION_BACKEND_URL =
@@ -117,3 +118,44 @@ export async function generateCodeStream(
     }
   }
 }
+
+export async function getActiveRun(): Promise<ActiveRunResponse> {
+  const res = await fetch(resolveUrl('/api/runs/active'))
+  if (!res.ok) {
+    throw new Error(`Failed to fetch active run: HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function streamActiveRun(
+  offset: number = 0,
+  onChunk: (chunk: string) => void
+): Promise<void> {
+  const url = resolveUrl(`/api/runs/active/stream?offset=${encodeURIComponent(offset)}`)
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'text/plain; charset=utf-8',
+    },
+  })
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '')
+    throw new Error(errText || `Failed to stream active run: HTTP ${response.status}`)
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) {
+    throw new Error('ReadableStream not supported by browser environment.')
+  }
+
+  const decoder = new TextDecoder()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    const chunk = decoder.decode(value, { stream: true })
+    if (chunk) {
+      onChunk(chunk)
+    }
+  }
+}
+

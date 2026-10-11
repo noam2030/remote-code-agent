@@ -76,15 +76,5 @@ Error: Process completed with exit code 1.
 70. why do i see frontend and backend in the projects list? the list should be a reflection of github. in github i dont have these projects!!!!!! do not store these projects to any persistent.
 71. confirm
 72. merge
-
-
-
-
-
-
-
-
-
-
-
-
+73. i want that i will be able to write a promt from my mac browser, then close it and open remote-code-agent application from my phone browser and keep viewing the proces and contuinue to promt from phone
+74. confirm
