@@ -194,6 +194,34 @@ class TestGithubService(unittest.TestCase):
             self.assertTrue(os.path.exists(ci_file))
             self.assertTrue(os.path.exists(os.path.join(tmp_dir, "app.py")))
 
+    @patch("subprocess.run")
+    def test_sync_project_repo_secrets_sets_available_secrets(self, mock_run):
+        from remote_code_agent.github_service import sync_project_repo_secrets
+
+        calls = []
+
+        def mock_subprocess(cmd, **kwargs):
+            calls.append(cmd)
+            m = MagicMock()
+            m.returncode = 0
+            m.stdout = ""
+            m.stderr = ""
+            return m
+
+        mock_run.side_effect = mock_subprocess
+
+        env = {
+            "GH_TOKEN": "gho_test",
+            "GCP_SA_KEY": '{"type": "service_account"}',
+            "VERCEL_TOKEN": "v_test_token",
+        }
+        sync_project_repo_secrets("testuser/my-project", env=env)
+
+        secret_commands = [c for c in calls if len(c) >= 4 and c[0] == "gh" and c[1] == "secret" and c[2] == "set"]
+        secret_names = [c[3] for c in secret_commands]
+        self.assertIn("GCP_SA_KEY", secret_names)
+        self.assertIn("VERCEL_TOKEN", secret_names)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -52,6 +52,10 @@ GCP_OUTPUT_PROJECT_ID = (
 )
 VERCEL_SCOPE = os.environ.get("VERCEL_SCOPE", "noam-projects2")
 VERCEL_TEAM = os.environ.get("VERCEL_TEAM", "noam-projects2")
+VERCEL_TOKEN = os.environ.get("VERCEL_TOKEN", "")
+VERCEL_ORG_ID = os.environ.get("VERCEL_ORG_ID", "")
+VERCEL_PROJECT_ID = os.environ.get("VERCEL_PROJECT_ID", "")
+GCP_SA_KEY = os.environ.get("GCP_SA_KEY", "")
 PORT = int(os.environ.get("PORT", 8080))
 CORS_ORIGINS = [
     origin.strip()

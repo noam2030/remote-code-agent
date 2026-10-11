@@ -210,6 +210,29 @@ def list_user_github_repositories(env: dict[str, str] | None = None) -> list[dic
     return repos
 
 
+def sync_project_repo_secrets(project_repo: str, env: dict[str, str] | None = None) -> None:
+    """Automatically provisions essential deployment secrets (e.g. GCP_SA_KEY, VERCEL_TOKEN)
+    to the target repository if configured in the environment.
+    """
+    if env is None:
+        env = get_github_env()
+
+    secrets_to_sync = ["GCP_SA_KEY", "VERCEL_TOKEN", "VERCEL_ORG_ID", "VERCEL_PROJECT_ID"]
+    for secret_name in secrets_to_sync:
+        secret_val = env.get(secret_name) or os.environ.get(secret_name)
+        if secret_val:
+            try:
+                subprocess.run(
+                    ["gh", "secret", "set", secret_name, "--body", secret_val, "--repo", project_repo],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+            except Exception:
+                pass
+
+
 def push_to_dedicated_project_repo(
     project_dir: str,
     app_name: str,
@@ -239,6 +262,9 @@ def push_to_dedicated_project_repo(
         )
         if create_res.returncode == 0:
             time.sleep(2)  # Give GitHub API a moment to propagate newly created repository
+
+    # Automatically provision essential deployment secrets (GCP_SA_KEY, VERCEL_TOKEN) to target repo
+    sync_project_repo_secrets(project_repo, env=env)
 
     ignored_patterns = {".git", ".venv", "venv", "__pycache__", ".pytest_cache", ".DS_Store", "node_modules"}
 

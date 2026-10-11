@@ -78,14 +78,38 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy to Cloud Run (Staging)
+        env:
+          GEMINI_API_KEY_VAL: ${{ secrets.GEMINI_API_KEY }}
+          GH_TOKEN_VAL: ${{ secrets.GH_TOKEN }}
+          VERCEL_TOKEN_VAL: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_VAL: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PRJ_VAL: ${{ secrets.VERCEL_PROJECT_ID }}
+          GCP_SA_KEY_VAL: ${{ secrets.GCP_SA_KEY }}
         run: |
+          python3 -c "
+          import json, os
+          env_vars = {
+              'AGENT_WORKSPACE': 'workspace',
+              'GEMINI_API_KEY': os.environ.get('GEMINI_API_KEY_VAL', ''),
+              'GH_TOKEN': os.environ.get('GH_TOKEN_VAL', ''),
+              'VERCEL_TOKEN': os.environ.get('VERCEL_TOKEN_VAL', ''),
+              'VERCEL_ORG_ID': os.environ.get('VERCEL_ORG_VAL', ''),
+              'VERCEL_PROJECT_ID': os.environ.get('VERCEL_PRJ_VAL', ''),
+              'GCP_SA_KEY': os.environ.get('GCP_SA_KEY_VAL', ''),
+          }
+          with open('/tmp/cloudrun_staging_env.yaml', 'w') as f:
+              for k, v in env_vars.items():
+                  if v:
+                      f.write(f'{k}: {json.dumps(v)}\n')
+          "
           gcloud run deploy remote-code-agent-staging \
             --project ${{ vars.GCP_PROJECT_ID || 'ai-learning-499409' }} \
             --source . \
             --region ${{ vars.GCP_REGION || 'us-central1' }} \
             --allow-unauthenticated \
             --timeout=3600 \
-            --set-env-vars AGENT_WORKSPACE=workspace,GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}",GH_TOKEN="${{ secrets.GH_TOKEN }}"
+            --env-vars-file=/tmp/cloudrun_staging_env.yaml
+          rm -f /tmp/cloudrun_staging_env.yaml
 
   deploy-frontend-staging:
     name: Deploy Frontend to Vercel (Staging)
