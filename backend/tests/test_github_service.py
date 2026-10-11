@@ -155,6 +155,48 @@ class TestGithubService(unittest.TestCase):
                 content = gf.read()
                 self.assertIn(".venv/", content)
 
+    @patch("subprocess.run")
+    def test_push_to_dedicated_repo_retries_on_workflow_scope_rejection(self, mock_run):
+        from remote_code_agent.github_service import push_to_dedicated_project_repo
+
+        attempts = {"push_calls": 0}
+
+        def mock_subprocess(cmd, **kwargs):
+            m = MagicMock()
+            m.returncode = 0
+            if "api" in cmd and "user" in cmd:
+                m.stdout = "testuser\n"
+            elif "status" in cmd and "--porcelain" in cmd:
+                m.stdout = "A  app.py\n"
+            elif "push" in cmd:
+                attempts["push_calls"] += 1
+                if attempts["push_calls"] <= 2:
+                    m.returncode = 1
+                    m.stderr = "remote rejected: refusing to allow an OAuth App to create or update workflow without workflow scope"
+                else:
+                    m.returncode = 0
+                    m.stdout = "success"
+            else:
+                m.stdout = ""
+                m.stderr = ""
+            return m
+
+        mock_run.side_effect = mock_subprocess
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with open(os.path.join(tmp_dir, "app.py"), "w") as f:
+                f.write("print('hello')")
+            wf_dir = os.path.join(tmp_dir, ".github", "workflows")
+            os.makedirs(wf_dir, exist_ok=True)
+            with open(os.path.join(wf_dir, "ci.yml"), "w") as f:
+                f.write("name: CI")
+
+            env = {"GH_TOKEN": "gho_test"}
+            success, url = push_to_dedicated_project_repo(tmp_dir, "sample-project", env=env)
+            self.assertTrue(success)
+            self.assertIn("https://github.com/testuser/sample-project", url)
+            self.assertIn(".github/workflows omitted", url)
+
 
 if __name__ == "__main__":
     unittest.main()

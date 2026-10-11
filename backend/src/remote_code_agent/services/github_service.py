@@ -290,6 +290,28 @@ def push_to_dedicated_project_repo(
                 push_res = subprocess.run(["git", "push", "--force", "-u", "origin", "main"], cwd=repo_dir, env=env, capture_output=True, text=True)
                 if push_res.returncode != 0:
                     err_msg = (push_res.stderr or push_res.stdout or "unknown git error").strip()
+                    # If rejected because the token lacks 'workflow' scope, omit .github/workflows and retry
+                    if "workflow" in err_msg.lower():
+                        wf_dir = os.path.join(repo_dir, ".github", "workflows")
+                        if os.path.isdir(wf_dir):
+                            shutil.rmtree(wf_dir, ignore_errors=True)
+                            subprocess.run(["git", "add", "-A"], cwd=repo_dir, env=env, check=False)
+                            subprocess.run(
+                                ["git", "commit", "-m", "chore: omit .github/workflows (requires GitHub token workflow scope)"],
+                                cwd=repo_dir,
+                                env=env,
+                                check=False,
+                            )
+                            retry_push = subprocess.run(
+                                ["git", "push", "--force", "-u", "origin", "main"],
+                                cwd=repo_dir,
+                                env=env,
+                                capture_output=True,
+                                text=True,
+                            )
+                            if retry_push.returncode == 0:
+                                return True, f"https://github.com/{project_repo} (Note: .github/workflows omitted because GH_TOKEN lacks 'workflow' scope)"
+
                     return False, f"git push to {project_repo} failed: {sanitize_git_output(err_msg)}"
 
         return True, f"https://github.com/{project_repo}"

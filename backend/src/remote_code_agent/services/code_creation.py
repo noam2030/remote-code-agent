@@ -62,7 +62,7 @@ def get_agent_config(project_dir: str, app_name: str | None = None) -> google.an
             "- Ensure applications provide an interactive web interface or HTTP API (e.g. FastAPI, Flask, Streamlit, Express, React, or HTML/JS) "
             "or a Dockerfile listening on host 0.0.0.0 and port defined by $PORT (default 8080).\n\n"
             "DEPLOYMENT WORKFLOWS:\n"
-            "- When deployment is requested or appropriate, generate automated GitHub Actions workflows in `.github/workflows/` (e.g. `.github/workflows/deploy.yml`):\n"
+            "- Only generate GitHub Actions workflows in `.github/workflows/` (e.g. `.github/workflows/deploy.yml`) when automated deployment or CI/CD is explicitly requested by the user. Do NOT generate `.github/workflows/` for basic scripts or applications unless requested.\n"
             "  * For Google Cloud Platform: Deploy containerized applications to Google Cloud Run in Google Cloud project 'ai-learning-499409' (region: 'us-central1', unauthenticated access, using secrets.GCP_SA_KEY).\n"
             "  * For Vercel: Deploy web applications to Vercel team/scope 'noam-projects2' (e.g. using vercel-action or vercel CLI with secrets.VERCEL_TOKEN).\n\n"
             "PERSISTENCE & DATA STORAGE:\n"
@@ -218,7 +218,7 @@ async def generate_code_stream(
 
     agent_prompt = (
         f"You are Antigravity CLI on Cloud building the project '{app_name}'. "
-        f"Write complete, production-ready application code, automated tests, and GitHub deployment workflows directly into your workspace. "
+        f"Write complete, production-ready application code and automated tests (and deployment workflows if explicitly requested) directly into your workspace. "
         "The backend platform will automatically commit and publish your generated files to GitHub when you finish.\n\n"
         f"User Instruction:\n{prompt}"
     ) if not is_info else prompt
