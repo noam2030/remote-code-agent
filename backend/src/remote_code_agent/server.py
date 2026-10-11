@@ -44,8 +44,8 @@ async def root():
         "frontend": FRONTEND_URL,
         "workspace": BASE_WORKSPACE,
         "cors_enabled": True,
-        "github_publishing": "enabled (direct push to main in remote-code-agent-output)",
-        "output_repository": "remote-code-agent-output",
+        "github_publishing": "enabled (dedicated repository per project)",
+        "output_mode": "dedicated_repositories",
         "output_branch": "main",
         "firestore_database": f"{GCP_OUTPUT_PROJECT_ID} / (default)",
     }

@@ -23,12 +23,12 @@ export const Header: React.FC = () => {
           <span className="status-text-short">Connected</span>
         </div>
         <a
-          href="https://github.com/noam2030/remote-code-agent-output"
+          href="https://github.com/noam2030"
           target="_blank"
           rel="noopener noreferrer"
           className="nav-btn"
         >
-          🐙 <span className="nav-btn-text-full">GitHub Central Repo</span>
+          🐙 <span className="nav-btn-text-full">GitHub Profile</span>
           <span className="nav-btn-text-short">GitHub</span>
         </a>
         <a

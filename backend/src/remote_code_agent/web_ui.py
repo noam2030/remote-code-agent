@@ -1047,8 +1047,8 @@ def get_web_ui_html() -> str:
         <span class="status-dot"></span>
         <span>Connected to Agent</span>
       </div>
-      <a href="https://github.com/noam2030/remote-code-agent-output" target="_blank" rel="noopener" class="nav-btn">
-        🐙 GitHub Central Repo
+      <a href="https://github.com/noam2030" target="_blank" rel="noopener" class="nav-btn">
+        🐙 GitHub Profile
       </a>
       <a href="/docs" target="_blank" rel="noopener" class="nav-btn">
         📖 API Docs
@@ -1622,7 +1622,7 @@ def get_web_ui_html() -> str:
 
       const newProj = {
         name: cleanName,
-        github_url: `https://github.com/noam2030/remote-code-agent-output/tree/main/${cleanName}`,
+        github_url: `https://github.com/noam2030/${cleanName}`,
         cloud_run_url: null,
         files: [],
         files_count: 0,
@@ -1822,8 +1822,8 @@ def get_web_ui_html() -> str:
 
         // Show Success Alert
         alertTitle.textContent = `Successfully updated project '${selectedProject.name}'!`;
-        alertSub.textContent = `Code pushed directly to ${selectedProject.name}/ in GitHub. Google Cloud Run deployment triggered.`;
-        alertLink.href = `https://github.com/noam2030/remote-code-agent-output/tree/main/${selectedProject.name}`;
+        alertSub.textContent = `Code pushed directly to dedicated GitHub repo. Google Cloud Run deployment triggered.`;
+        alertLink.href = `https://github.com/noam2030/${selectedProject.name}`;
         successAlert.style.display = 'flex';
 
         // Reload project details to refresh files list
