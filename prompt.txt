@@ -60,6 +60,9 @@ Error: Process completed with exit code 1.
 54. why do you need number 3 if you tell the agent to not use this variable?
 55. confirm
 56. merge
+57. i see in the cloud run console that the application which the remote-code-agent built, are deployed with container type. i want them to be built with source type.
+58. confirm
+
 
 
 
