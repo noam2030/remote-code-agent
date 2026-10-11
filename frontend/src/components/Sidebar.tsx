@@ -41,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       onSelectProject({
         name,
         cloud_run_url: null,
+        vercel_url: null,
         github_url: `https://github.com/noam2030/${name}`,
         has_remote: false,
         is_local: false,
@@ -171,6 +172,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
 
                 <div className="project-links">
+                  {proj.vercel_url && (
+                    <a
+                      href={proj.vercel_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="project-tag tag-live"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      🌐 UI
+                    </a>
+                  )}
                   {proj.cloud_run_url && (
                     <a
                       href={proj.cloud_run_url}
@@ -179,7 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       className="project-tag tag-live"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      🚀 Live App
+                      🚀 API
                     </a>
                   )}
                   <a

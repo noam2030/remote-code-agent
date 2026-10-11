@@ -58,6 +58,8 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         test_dir = os.path.join(BASE_WORKSPACE, "test-unit-custom")
         config = get_agent_config(test_dir, app_name="custom-project-name")
         self.assertIn("custom-project-name", config.system_instructions)
+        self.assertIn("custom-project-name-api", config.system_instructions)
+        self.assertIn("custom-project-name-ui", config.system_instructions)
         self.assertIn("Google Cloud Run", config.system_instructions)
         self.assertIn("Google Cloud Firestore", config.system_instructions)
         self.assertIn("ai-learning-499409", config.system_instructions)

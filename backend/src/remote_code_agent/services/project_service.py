@@ -283,19 +283,31 @@ def get_project_file_content(
     }
 
 
+def extract_deployment_urls(text: str) -> tuple[str | None, str | None]:
+    """Finds Cloud Run (*.run.app) and Vercel (*.vercel.app) URLs in text."""
+    if not text:
+        return None, None
+    run_match = re.search(r"https://[a-zA-Z0-9_.\-]+\.run\.app", text)
+    vercel_match = re.search(r"https://[a-zA-Z0-9_.\-]+\.vercel\.app", text)
+    cloud_run_url = run_match.group(0) if run_match else None
+    vercel_url = vercel_match.group(0) if vercel_match else None
+    return cloud_run_url, vercel_url
+
+
 def parse_readme_projects(readme_content: str) -> dict[str, dict[str, str]]:
-    """Extracts project entries and Cloud Run URLs from repository root README.md content.
+    """Extracts project entries, Cloud Run URLs, and Vercel URLs from README.md content.
 
     Matches patterns like:
-    - [hello-world-from-2052](https://...run.app) (Live Cloud Run App) | [Source Code](./hello-world-from-2052/)
+    - [hello-world](https://...run.app) (Live Cloud Run App) | [Source Code](./hello-world/)
+    - [hello-world](https://...vercel.app) (Live UI)
     or:
-    - [hello-world-from-2052](./hello-world-from-2052/): description
+    - [hello-world](./hello-world/): description
     """
     projects: dict[str, dict[str, str]] = {}
     if not readme_content:
         return projects
 
-    # Regex for live app url: - [project_name](url) (Live Cloud Run App)
+    # Regex for live app url: - [project_name](url) (Live App)
     pattern_with_url = re.compile(
         r"-\s*\[([a-zA-Z0-9_\-]+)\]\((https?://[^)]+)\)\s*(?:\([^)]*\))?(?:\s*\|\s*\[Source Code\]\([^)]+\))?",
         re.MULTILINE,
@@ -303,7 +315,14 @@ def parse_readme_projects(readme_content: str) -> dict[str, dict[str, str]]:
     for match in pattern_with_url.finditer(readme_content):
         name = match.group(1)
         url = match.group(2)
-        projects[name] = {"cloud_run_url": url}
+        if name not in projects:
+            projects[name] = {}
+        if "vercel.app" in url:
+            projects[name]["vercel_url"] = url
+        elif "run.app" in url:
+            projects[name]["cloud_run_url"] = url
+        elif "cloud_run_url" not in projects[name]:
+            projects[name]["cloud_run_url"] = url
 
     # Regex for standard bullet entries: - [project_name](...)
     pattern_bullets = re.compile(
@@ -316,8 +335,13 @@ def parse_readme_projects(readme_content: str) -> dict[str, dict[str, str]]:
         desc = match.group(3) or ""
         if name not in projects:
             projects[name] = {}
-        if link.startswith("http") and "cloud_run_url" not in projects[name]:
-            projects[name]["cloud_run_url"] = link
+        if link.startswith("http"):
+            if "vercel.app" in link:
+                projects[name]["vercel_url"] = link
+            elif "run.app" in link:
+                projects[name]["cloud_run_url"] = link
+            elif "cloud_run_url" not in projects[name]:
+                projects[name]["cloud_run_url"] = link
         if desc:
             projects[name]["description"] = desc.strip()
 
@@ -348,6 +372,7 @@ def list_remote_projects(
                 "description": repo.get("description") or "",
                 "github_url": repo_url,
                 "cloud_run_url": None,
+                "vercel_url": None,
                 "has_remote": True,
                 "is_private": repo.get("isPrivate", False),
                 "updated_at": repo.get("updatedAt"),
@@ -380,6 +405,8 @@ def list_remote_projects(
         if name in projects:
             if meta.get("cloud_run_url") and not projects[name].get("cloud_run_url"):
                 projects[name]["cloud_run_url"] = meta.get("cloud_run_url")
+            if meta.get("vercel_url") and not projects[name].get("vercel_url"):
+                projects[name]["vercel_url"] = meta.get("vercel_url")
             if meta.get("description") and not projects[name].get("description"):
                 projects[name]["description"] = meta.get("description")
         elif not name.startswith(".") and name not in {"scripts", "tests"}:
@@ -388,6 +415,7 @@ def list_remote_projects(
                 "description": meta.get("description") or "",
                 "github_url": f"https://github.com/{full_repo}/tree/main/{name}",
                 "cloud_run_url": meta.get("cloud_run_url"),
+                "vercel_url": meta.get("vercel_url"),
                 "has_remote": True,
             }
 
@@ -422,6 +450,7 @@ def list_remote_projects(
                             "description": "",
                             "github_url": f"https://github.com/{full_repo}/tree/main/{name}",
                             "cloud_run_url": readme_metadata.get(name, {}).get("cloud_run_url"),
+                            "vercel_url": readme_metadata.get(name, {}).get("vercel_url"),
                             "has_remote": True,
                         }
                 except Exception:
@@ -445,10 +474,22 @@ def list_local_projects(workspace_dir: str = BASE_WORKSPACE) -> dict[str, dict[s
             stats = load_project_stats(entry, workspace_dir=workspace_dir)
             files = [f["path"] for f in files_detail]
 
+            readme_path = os.path.join(p_dir, "README.md")
+            local_cloud_run = None
+            local_vercel = None
+            if os.path.exists(readme_path):
+                try:
+                    with open(readme_path, "r", encoding="utf-8") as rf:
+                        local_cloud_run, local_vercel = extract_deployment_urls(rf.read())
+                except Exception:
+                    pass
+
             projects[entry] = {
                 "name": entry,
                 "is_local": True,
                 "local_path": p_dir,
+                "cloud_run_url": local_cloud_run,
+                "vercel_url": local_vercel,
                 "files": files,
                 "files_count": len(files),
                 "files_detail": files_detail,
@@ -475,6 +516,7 @@ def list_projects() -> list[dict[str, Any]]:
             "description": data.get("description", ""),
             "github_url": data.get("github_url", f"https://github.com/{owner}/{name}"),
             "cloud_run_url": data.get("cloud_run_url"),
+            "vercel_url": data.get("vercel_url"),
             "has_remote": True,
             "is_local": False,
             "is_private": data.get("is_private", False),
@@ -497,12 +539,17 @@ def list_projects() -> list[dict[str, Any]]:
             merged[name]["lines_of_code"] = data.get("lines_of_code", 0)
             merged[name]["tokens_spent"] = data.get("tokens_spent", 0)
             merged[name]["stats"] = data.get("stats", {})
+            if data.get("cloud_run_url") and not merged[name].get("cloud_run_url"):
+                merged[name]["cloud_run_url"] = data.get("cloud_run_url")
+            if data.get("vercel_url") and not merged[name].get("vercel_url"):
+                merged[name]["vercel_url"] = data.get("vercel_url")
         else:
             merged[name] = {
                 "name": name,
                 "description": "",
                 "github_url": f"https://github.com/{owner}/{name}",
-                "cloud_run_url": None,
+                "cloud_run_url": data.get("cloud_run_url"),
+                "vercel_url": data.get("vercel_url"),
                 "has_remote": False,
                 "is_local": True,
                 "is_private": False,
@@ -613,6 +660,7 @@ def get_project_details(project_name: str) -> dict[str, Any] | None:
         "description": "",
         "github_url": f"https://github.com/{owner}/{canonical_name}",
         "cloud_run_url": None,
+        "vercel_url": None,
         "has_remote": False,
         "is_local": os.path.isdir(local_dir),
     }
@@ -628,6 +676,11 @@ def get_project_details(project_name: str) -> dict[str, Any] | None:
         try:
             with open(readme_file, "r", encoding="utf-8") as f:
                 readme_text = f.read()
+                cr_url, vc_url = extract_deployment_urls(readme_text)
+                if cr_url and not project_info.get("cloud_run_url"):
+                    project_info["cloud_run_url"] = cr_url
+                if vc_url and not project_info.get("vercel_url"):
+                    project_info["vercel_url"] = vc_url
         except Exception:
             pass
 

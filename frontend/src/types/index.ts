@@ -18,6 +18,7 @@ export interface Project {
   description?: string
   github_url: string
   cloud_run_url: string | null
+  vercel_url?: string | null
   has_remote: boolean
   is_local: boolean
   is_private?: boolean

@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from remote_code_agent.project_service import (
     BASE_WORKSPACE,
     delete_project,
+    extract_deployment_urls,
     get_project_details,
     list_local_projects,
     list_projects,
@@ -27,12 +28,23 @@ class TestProjectService(unittest.TestCase):
         self.assertEqual(sanitize_project_name("special!@#$%chars"), "specialchars")
         self.assertEqual(sanitize_project_name(""), "agent-app")
 
+    def test_extract_deployment_urls(self):
+        text = (
+            "Here is the app:\n"
+            "Backend API: https://hello-api-wkczjb63na-uc.a.run.app\n"
+            "Frontend UI: https://hello-ui.vercel.app\n"
+        )
+        cr_url, vc_url = extract_deployment_urls(text)
+        self.assertEqual(cr_url, "https://hello-api-wkczjb63na-uc.a.run.app")
+        self.assertEqual(vc_url, "https://hello-ui.vercel.app")
+
     def test_parse_readme_projects(self):
         readme = (
             "# Remote Code Agent Output\n\n"
             "## Projects\n"
             "- [hello-world-from-2052](https://hello-world-from-2052-wkczjb63na-uc.a.run.app) (Live Cloud Run App) | [Source Code](./hello-world-from-2052/)\n"
             "- [change-also-output-3836](https://change-also-output-3836-wkczjb63na-uc.a.run.app) (Live Cloud Run App) | [Source Code](./change-also-output-3836/)\n"
+            "- [hello-ui](https://hello-ui.vercel.app) (Live UI)\n"
             "- [simple-app](./simple-app/): A simple sample project\n"
         )
         parsed = parse_readme_projects(readme)
@@ -46,6 +58,11 @@ class TestProjectService(unittest.TestCase):
             parsed["change-also-output-3836"]["cloud_run_url"],
             "https://change-also-output-3836-wkczjb63na-uc.a.run.app",
         )
+        self.assertIn("hello-ui", parsed)
+        self.assertEqual(
+            parsed["hello-ui"]["vercel_url"],
+            "https://hello-ui.vercel.app",
+        )
         self.assertIn("simple-app", parsed)
 
     def test_list_local_projects(self):
@@ -55,7 +72,7 @@ class TestProjectService(unittest.TestCase):
             with open(os.path.join(proj1, "main.py"), "w") as f:
                 f.write("print('hello')")
             with open(os.path.join(proj1, "README.md"), "w") as f:
-                f.write("# App Alpha")
+                f.write("# App Alpha\n\n- API: https://app-alpha-api.run.app\n- UI: https://app-alpha-ui.vercel.app")
 
             proj2 = os.path.join(tmp_dir, "app-beta")
             os.makedirs(proj2)
@@ -66,6 +83,8 @@ class TestProjectService(unittest.TestCase):
             self.assertIn("app-alpha", projects)
             self.assertIn("app-beta", projects)
             self.assertEqual(projects["app-alpha"]["files_count"], 2)
+            self.assertEqual(projects["app-alpha"]["cloud_run_url"], "https://app-alpha-api.run.app")
+            self.assertEqual(projects["app-alpha"]["vercel_url"], "https://app-alpha-ui.vercel.app")
             self.assertIn("main.py", projects["app-alpha"]["files"])
 
     @patch("subprocess.run")

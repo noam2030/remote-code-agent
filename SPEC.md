@@ -14,9 +14,9 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
   - If the project already exists locally in `workspace/<project_name>`, the application pulls latest remote changes to ensure the workspace is up to date before code generation begins.
 - **Antigravity CLI on Cloud Code Generation**: Implements requested code additions or updates directly inside the project workspace directory `workspace/<project_name>`, running tests and maintaining code quality.
 - **Dedicated GitHub Push**: Commits and pushes generated or modified code directly to the user's dedicated GitHub repository (`<owner>/<project_name>`) on the `main` branch.
-- **Automated Deployment Workflows**: When asked to deploy, generate GitHub Actions workflows (`.github/workflows/deploy.yml`):
-  - Google Cloud Platform deployments target project `ai-learning` (`ai-learning-499409`) on Cloud Run.
-  - Vercel deployments target scope/team `noam-projects2`.
+- **Automated Deployment Workflows & Naming Conventions**: When asked to deploy, generate GitHub Actions workflows (`.github/workflows/deploy.yml`):
+  - **Backend Cloud Run Deployment**: Backend services MUST be named `<project_name>-api` (e.g., `hello-api`, `hello-1-api`). Deploys containerized applications to Google Cloud project `ai-learning` (`ai-learning-499409`) on Cloud Run in region `us-central1` with unauthenticated access using secrets.GCP_SA_KEY.
+  - **Frontend Vercel Deployment**: Frontend UI web applications MUST be deployed to Vercel project `<project_name>-ui` (e.g., `hello-ui`, `hello-1-ui`) under team/scope `noam-projects2` using secrets.VERCEL_TOKEN.
 - **Cloud Persistence**: Persistent application state uses Google Cloud Firestore in project `ai-learning-499409` under dedicated collections, with mock/in-memory fallbacks for offline testing.
 - **Real-Time Streaming**: Stream logs, tool invocations, and agent actions to client applications using Server-Sent Events (SSE).
 - **Project Isolation**: Maintain independent workspace directories under `workspace/<project_name>` for each generated or managed project.
@@ -76,16 +76,16 @@ The system consists of two primary tiers:
 The backend is structured under `backend/src/remote_code_agent`:
 - `core/config.py`: Environment variable loading, fallback discovery, GCP project ID (`ai-learning-499409`), and Vercel scope settings (`noam-projects2`).
 - `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, and file inspection endpoints.
-- `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity`. Ensures target workspace directory exists, and directs the agent to focus strictly on generating complete application code, tests, and deployment workflows directly to files. Enforces valid GitHub Actions syntax in generated workflows, utilizing standard event/branch job-level conditionals (`if: github.event_name == 'push' && github.ref == 'refs/heads/main'`) and never using the `secrets` context in job-level `if:` expressions. The agent does not create virtual environments (`.venv`), install dependencies, or run git commands. Once code generation finishes, the backend service automatically commits and pushes all created files to GitHub.
+- `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity`. Ensures target workspace directory exists, and directs the agent to focus strictly on generating complete application code, tests, and deployment workflows directly to files. Enforces standard deployment naming conventions: backend Cloud Run service `<project_name>-api` and frontend Vercel project `<project_name>-ui`. Enforces valid GitHub Actions syntax in generated workflows, utilizing standard event/branch job-level conditionals (`if: github.event_name == 'push' && github.ref == 'refs/heads/main'`) and never using the `secrets` context in job-level `if:` expressions. The agent does not create virtual environments (`.venv`), install dependencies, or run git commands. Once code generation finishes, the backend service automatically commits and pushes all created files to GitHub.
 - `services/intent_service.py`: Classifies user input into code creation/modification tasks or informational queries.
-- `services/project_service.py`: Discovers user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, preserves the user's project name and casing, and calculates repository statistics. Project syncing and deletion operate directly on dedicated GitHub repositories (`<owner>/<project_name>`) without reliance on any central output repository.
+- `services/project_service.py`: Discovers user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, preserves the user's project name and casing, and calculates repository statistics. Resolves live deployment links for both backend API (`cloud_run_url` targeting `<project_name>-api`) and frontend UI (`vercel_url` targeting `<project_name>-ui`). Project syncing and deletion operate directly on dedicated GitHub repositories (`<owner>/<project_name>`) without reliance on any central output repository.
 - `services/prompt_service.py`: Parsing, updating, and synthesizing project prompt history in `prompt.txt` with fast fallback.
 - `services/github_service.py`: Automates dedicated GitHub repository creation (`<owner>/<project_name>`), initializes git, writes `.gitignore`, commits generated files, and executes deterministic git pushes directly to `main` of the dedicated repository without mutating or deleting repository files. Automatically provisions deployment secrets (`GCP_SA_KEY`, `VERCEL_TOKEN`) from the backend environment to target repositories via `gh secret set`, enabling generated CI/CD workflows to execute out-of-the-box. Requires a `GH_TOKEN` configured with `repo` and `workflow` scopes, surfacing clear diagnostics if permission errors occur.
 - `server.py`: FastAPI application factory with CORS middleware and error handling.
 
 ## 7. Frontend
 The frontend is structured under `frontend/`:
-- `src/components/`: Reusable UI modules including `Header`, `Sidebar`, `TargetProjectBanner`, `FilesDrawer`, `TerminalStream`, `PromptEditor`, and modal dialogs.
+- `src/components/`: Reusable UI modules including `Header`, `Sidebar`, `TargetProjectBanner` (supporting dual links for 🌐 Live UI on Vercel and 🚀 Backend API on Cloud Run), `FilesDrawer`, `TerminalStream`, `PromptEditor`, and modal dialogs.
 - `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints and EventSource listeners.
 - `src/types/`: Interfaces for projects, generation events, file trees, and system status.
 - `src/App.tsx`: Top-level application state orchestrator, handling project creation persistence, active project selection with case-insensitivity, and code generation streaming.
@@ -109,6 +109,7 @@ The frontend is structured under `frontend/`:
     description?: string
     github_url: string
     cloud_run_url: string | null
+    vercel_url?: string | null
     has_remote: boolean
     is_local: boolean
     is_private?: boolean

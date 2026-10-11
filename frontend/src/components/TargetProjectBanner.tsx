@@ -77,14 +77,24 @@ export const TargetProjectBanner: React.FC<TargetProjectBannerProps> = ({
       </div>
 
       <div className="banner-actions">
+        {project.vercel_url && (
+          <a
+            href={project.vercel_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="action-btn action-btn-primary"
+          >
+            🌐 Open Live UI
+          </a>
+        )}
         {project.cloud_run_url && (
           <a
             href={project.cloud_run_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="action-btn action-btn-primary"
+            className={`action-btn ${project.vercel_url ? 'action-btn-secondary' : 'action-btn-primary'}`}
           >
-            🚀 Open Live Cloud Run App
+            🚀 Open API (Cloud Run)
           </a>
         )}
         <a
