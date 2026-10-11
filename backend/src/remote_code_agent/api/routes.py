@@ -11,6 +11,7 @@ from remote_code_agent.services.project_service import (
     get_project_file_content,
     list_projects,
 )
+from remote_code_agent.services.run_manager import RunAlreadyInProgressError, run_manager
 
 router = APIRouter()
 
@@ -61,6 +62,28 @@ async def api_get_project_file(project_name: str, file_path: str):
         raise HTTPException(status_code=500, detail=f"Error reading file: {e}")
 
 
+@router.get("/runs/active")
+async def api_get_active_run():
+    """Returns active or latest run status and accumulated logs."""
+    return run_manager.get_active_run()
+
+
+@router.get("/runs/active/stream")
+async def api_stream_active_run(
+    offset: int = Query(0, ge=0, description="Character offset to start streaming from")
+):
+    """Streaming endpoint to connect/re-attach to the ongoing or latest run."""
+    if not run_manager.current_run:
+        raise HTTPException(status_code=404, detail="No active or recent run found")
+    return StreamingResponse(
+        run_manager.stream_run(offset=offset),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 
 @router.get("/generate")
 async def api_generate_get(
@@ -68,10 +91,18 @@ async def api_generate_get(
     project_name: str | None = Query(
         None, description="Optional target project name to create or update"
     ),
+    offset: int = Query(0, ge=0, description="Optional character offset"),
 ):
     """Streaming endpoint for autonomous code generation (GET)."""
+    try:
+        run = run_manager.start_run(
+            prompt, project_name=project_name, generator_fn=generate_code_stream
+        )
+    except RunAlreadyInProgressError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
     return StreamingResponse(
-        generate_code_stream(prompt, project_name=project_name),
+        run_manager.stream_run(run.run_id, offset=offset),
         media_type="text/plain; charset=utf-8",
         headers={
             "Cache-Control": "no-cache, no-transform",
@@ -83,11 +114,19 @@ async def api_generate_get(
 @router.post("/generate")
 async def api_generate_post(request: GenerateRequest):
     """Streaming endpoint for autonomous code generation (POST)."""
+    try:
+        run = run_manager.start_run(
+            request.prompt, project_name=request.project_name, generator_fn=generate_code_stream
+        )
+    except RunAlreadyInProgressError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
     return StreamingResponse(
-        generate_code_stream(request.prompt, project_name=request.project_name),
+        run_manager.stream_run(run.run_id),
         media_type="text/plain; charset=utf-8",
         headers={
             "Cache-Control": "no-cache, no-transform",
             "X-Accel-Buffering": "no",
         },
     )
+

@@ -277,6 +277,54 @@ main.main-grid {
   }
 }
 
+@media (max-width: 768px) {
+  .sidebar {
+    height: 280px;
+    max-height: 35vh;
+  }
+
+  .terminal-card {
+    min-height: 300px;
+  }
+
+  .terminal-output {
+    padding: 0.75rem 0.85rem;
+    font-size: 14px;
+    line-height: 1.6;
+    height: 350px;
+  }
+
+  .generator-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .btn-generate {
+    width: 100%;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+  }
+
+  .banner-actions {
+    gap: 0.4rem;
+  }
+
+  .action-btn {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.75rem;
+  }
+
+  .app-toast {
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    text-align: center;
+  }
+}
+
+
 /* Left Sidebar: Projects List */
 .sidebar {
   background-color: #0d121f;

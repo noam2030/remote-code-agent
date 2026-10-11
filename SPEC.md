@@ -5,6 +5,8 @@ Remote Code Agent is an autonomous AI-driven code generation, modification, and 
 
 As a core application feature, the web interface loads and catalogues all repositories belonging to the authenticated user's GitHub account (`<owner>/*`). The project catalog is a strict, dynamic reflection of the user's GitHub repositories; it does not list internal subdirectories of repositories (such as `frontend` or `backend`) and does not store or persist projects in any database or persistent storage. The user selects which repository to work on or creates a new project repository. Project and repository deletion is completely disabled across the system to protect repositories and local workspaces from accidental data loss. Once the user selects a repository and instructs the agent to write new code or update existing code, the application clones the selected repository into `workspace/<project_name>` (or pulls latest changes if already present), implements the requested code changes via Antigravity CLI on Cloud, and commits and pushes the updated code directly to the dedicated GitHub repository (`<owner>/<project_name>`). If asked to deploy, the agent adds GitHub Actions workflows targeting Google Cloud project `ai-learning` (`ai-learning-499409`) and Vercel scope `noam-projects2`.
 
+The system supports seamless cross-device session continuation: code generation is managed server-side via a decoupled `RunManager` background task so users can initiate a prompt from a desktop browser (e.g. Mac), close the browser, and subsequently open the application on a mobile phone browser to monitor real-time progress, inspect replayed logs, and continue submitting follow-up prompts from the phone.
+
 The agent strictly adheres to two core operational skills across every managed project: **`project-specification`** (maintaining a single, authoritative `SPEC.md` containing all 12 mandatory sections: Overview, Requirements, User Experience, Architecture, Technology Stack, Backend, Frontend, Data Model, API, Configuration, Testing, Deployment) and **`development-workflow`** (updating `SPEC.md` first before implementing changes, ensuring code is an exact reflection of `SPEC.md`, maintaining sequentially numbered prompt history in `prompt.txt`, ensuring comprehensive automated tests in `tests/`, and configuring CI/CD deployment workflows).
 
 The service is deployed on Google Cloud Run under project `ai-learning-499409`.
@@ -15,6 +17,10 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
   - If the project has not yet been cloned locally, the application automatically clones the repository into `workspace/<project_name>`.
   - If the project already exists locally in `workspace/<project_name>`, the application pulls latest remote changes to ensure the workspace is up to date before code generation begins.
 - **Antigravity CLI on Cloud Code Generation**: Implements requested code additions or updates directly inside the project workspace directory `workspace/<project_name>`, running tests and maintaining code quality.
+- **Decoupled Background Execution & Cross-Device Session Handoff**: Code generation tasks execute in independent server-side background tasks managed by a singleton `RunManager`, decoupled from individual client HTTP connection lifetimes. Closing a client browser tab or socket does not cancel generation.
+- **Re-attachable Active Run & Live Stream Replay**: The server provides an active run status endpoint (`GET /api/runs/active`) and an active run stream endpoint (`GET /api/runs/active/stream`). Clients opening the application on any device (e.g. mobile phone) can query active run status, auto-select the running project, replay existing log history, and attach to live SSE streaming.
+- **Cross-Device Mobile Continuation**: When accessing the application from a mobile browser, users can monitor in-progress runs, view logs, and immediately submit follow-up prompts from their mobile device.
+- **Mobile Responsive Layout**: Responsive layout adaptations ensuring the header, project banner, terminal console, and prompt editor are touch-friendly and smoothly navigable on mobile viewports.
 - **Dedicated GitHub Push**: Commits and pushes generated or modified code directly to the user's dedicated GitHub repository (`<owner>/<project_name>`) on the `main` branch.
 - **Automated Deployment Workflows & Naming Conventions**: When asked to deploy, generate GitHub Actions workflows (`.github/workflows/deploy.yml`):
   - **Backend Cloud Run Deployment**: Backend services MUST be named `<project_name>-api` (e.g., `hello-api`, `hello-1-api`). Deploys applications to Google Cloud project `ai-learning` (`ai-learning-499409`) on Cloud Run in region `us-central1` with unauthenticated access using secrets.GCP_SA_KEY. All Cloud Run deployments MUST use **Source type** (`gcloud run deploy <project_name>-api --source . ...`), building directly from source via Google Cloud Build. Workflows must NEVER use `docker build`, `docker push`, or `--image` flags. In Google Cloud Run, the environment variable `PORT` is reserved and injected automatically by the platform; workflows must NEVER define or pass `PORT` in `--set-env-vars` or `--update-env-vars`. Container listening port is configured exclusively via the `--port 8080` flag.
@@ -35,10 +41,16 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
   - Controls to create a new project (`+ New`). Project deletion is entirely removed.
   - Creating a new project (`+ New`) immediately adds the project to the top of the sidebar list with a `✨ New` indicator and selects it as the active target project, so it remains selected for code generation.
   - Selection state is case-insensitive and preserves canonical repository casing, ensuring that mixed-case or TitleCase projects (such as `OpenTrain` or `QR-X-Ray`) remain permanently active when selected.
+- **Cross-Device Handover & Continuous Streaming**:
+  - A user can enter a prompt on desktop (Mac), trigger generation, and close the browser or shut down their machine.
+  - Opening the web application on a mobile phone (or any secondary browser) checks for active runs. If an active run is detected, the frontend automatically selects the relevant project, restores prior log output, displays an active generation indicator, and connects to the live stream to render ongoing progress in real-time.
+  - When the process completes, the terminal stream displays the final output, and the prompt input is fully enabled so the user can immediately continue prompting directly from their phone.
+- **Mobile Responsive Layout & Viewport Adaptations**:
+  - On mobile screens (viewports under 768px), the layout smoothly stacks: the header and target project banner remain easily readable, the sidebar remains accessible via drawer or vertical stacking, and the terminal and prompt box scale cleanly with touch-friendly input and submit buttons.
 - **Target Project Banner & File Explorer**:
   - Displays the active project name, direct GitHub link, lines of code, and file count.
   - On-demand file explorer drawer allows opening and inspecting source files and master prompt history (`prompt.txt`).
-- **Terminal & Log Viewer**: Real-time console view rendering color-coded output from backend SSE streams during code generation, testing, and GitHub pushing.
+- **Terminal & Log Viewer**: Real-time console view rendering color-coded output from backend SSE streams during code generation, testing, and GitHub pushing. Supports replaying buffered logs for newly attached clients.
 - **Execution Controls**: Prompt input with quick actions to initiate generation, inspect architecture, or cancel in-progress operations.
 - **Fixed Viewport & Independent Pane Scrolling**:
   - The application desktop layout is fixed to the screen height (`100vh`) with zero document-level page scrolling.
@@ -53,12 +65,13 @@ The system consists of two primary tiers:
 ```text
 [ React / Vite Frontend (Vercel) ]
              │
-             │ HTTPS / SSE
+             │ HTTPS / SSE (Active Run Re-attachment)
              ▼
 [ FastAPI Backend (Google Cloud Run in ai-learning-499409) ]
      ├── Core Configuration (Env, Secrets, Paths)
      ├── API Layer (REST & SSE Endpoints)
      ├── Services
+     │    ├── Run Manager (Decoupled Background Tasks, Log Buffering & Multi-Client Broadcast)
      │    ├── Code Creation (Antigravity SDK Runner & Streamer)
      │    ├── Intent Detection (Info vs Code)
      │    ├── Project Service (Workspace, GitHub Repo Catalog & Sync)
@@ -83,7 +96,8 @@ The system consists of two primary tiers:
 ## 6. Backend
 The backend is structured under `backend/src/remote_code_agent`:
 - `core/config.py`: Environment variable loading, fallback discovery, GCP project ID (`ai-learning-499409`), and Vercel scope settings (`noam-projects2`).
-- `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, and file inspection endpoints.
+- `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, `/api/runs/active`, `/api/runs/active/stream`, and file inspection endpoints.
+- `services/run_manager.py`: Centralized singleton manager governing code generation background tasks. Decouples task execution from single client connections using `asyncio.create_task`, accumulates all streamed chunks into a memory buffer, and broadcasts live chunks to multiple client subscription queues simultaneously. Enables clients connecting after a task has started (e.g., from mobile) to retrieve active state via `get_active_run()` and stream past logs plus live updates via `stream_run()`.
 - `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity`. Ensures target workspace directory exists, and directs the agent to strictly follow the `development-workflow` and `project-specification` skills across every managed project. Mandates maintaining a single authoritative `SPEC.md` containing all mandatory sections 1 to 12 (Overview, Requirements, User Experience, Architecture, Technology Stack, Backend, Frontend, Data Model, API, Configuration, Testing, Deployment), updating `SPEC.md` first before writing code, and ensuring code is an exact reflection of `SPEC.md`. Enforces standard deployment naming conventions: backend Cloud Run service `<project_name>-api` and frontend Vercel project `<project_name>-ui`. Enforces valid GitHub Actions syntax in generated workflows, utilizing standard event/branch job-level conditionals (`if: github.event_name == 'push' && github.ref == 'refs/heads/main'`) and never using the `secrets` context in job-level `if:` expressions. Strictly instructs the agent that Google Cloud Run deployments MUST be configured with **Source type** (`--source .`) rather than Container type (`docker build`, `docker push`, `--image`). Strictly instructs the agent that Google Cloud Run reserves `PORT`, prohibiting setting or passing `PORT` in `--set-env-vars` or `--update-env-vars` when generating `gcloud run deploy` commands, and requiring container port configuration to use `--port 8080` instead. The agent does not create virtual environments (`.venv`), install dependencies, or run git commands. Once code generation finishes, the backend service automatically commits and pushes all created files to GitHub.
 - `services/intent_service.py`: Classifies user input into code creation/modification tasks or informational queries.
 - `services/project_service.py`: Discovers user GitHub repositories via `gh repo list` and REST API as a direct, dynamic reflection of GitHub without inspecting subdirectories or synthesizing dummy projects for internal folders such as `frontend` or `backend`. Does not store projects in any persistent storage or database. Local workspace directories under `workspace/` serve strictly as ephemeral working directories for cloned repositories. Preserves the user's project name and casing, and calculates repository statistics. Resolves live deployment links for both backend API (`cloud_run_url` targeting `<project_name>-api`) and frontend UI (`vercel_url` targeting `<project_name>-ui`). Project and repository deletion is entirely removed from the application to protect codebase assets from accidental deletion.
@@ -94,10 +108,10 @@ The backend is structured under `backend/src/remote_code_agent`:
 ## 7. Frontend
 The frontend is structured under `frontend/`:
 - `src/components/`: Reusable UI modules including `Header`, `Sidebar`, `TargetProjectBanner` (supporting dual links for 🌐 Live UI on Vercel and 🚀 Backend API on Cloud Run), `FilesDrawer`, `TerminalStream`, `PromptEditor`, and modal dialogs.
-- `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints and EventSource listeners.
-- `src/types/`: Interfaces for projects, generation events, file trees, and system status.
-- `src/App.tsx`: Top-level application state orchestrator, handling project creation persistence, active project selection with case-insensitivity, and code generation streaming.
-- `src/index.css`: Global styles and fixed viewport desktop layout (`100vh`) providing independent scrolling containers for sidebar projects and terminal logs.
+- `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints, active run retrieval (`getActiveRun`), and streaming endpoints (`streamActiveRun`, `generateCodeStream`).
+- `src/types/`: Interfaces for projects, generation events, active runs, file trees, and system status.
+- `src/App.tsx`: Top-level application state orchestrator, handling project creation persistence, active project selection with case-insensitivity, active run auto-detection and re-connection on mount, seamless mobile handover, and code generation streaming.
+- `src/index.css`: Global styles, fixed viewport desktop layout (`100vh`) with independent scrolling containers, and responsive breakpoints for mobile phone browsers ensuring readable terminal output and accessible prompt inputs on screens below 768px.
 - `vercel.json`: Routing and static asset caching configuration.
 
 
@@ -135,13 +149,28 @@ The frontend is structured under `frontend/`:
   - `data: {"type": "tool_call", "tool": "..."}`
   - `data: {"type": "error", "error": "..."}`
   - `data: {"type": "done", "project": "...", "repo_url": "..."}`
+- **Active Run Schema**:
+  ```typescript
+  export interface ActiveRunResponse {
+    active: boolean
+    run_id: string | null
+    project_name: string | null
+    prompt: string | null
+    status: 'idle' | 'running' | 'completed' | 'error'
+    logs: string
+    started_at: number | null
+  }
+  ```
 
 ## 9. API
 - `GET /api/health`: Health status endpoint returning status code 200 and system health metadata.
 - `GET /api/projects`: List all user GitHub repositories dynamically as a direct reflection of GitHub.
 - `GET /api/projects/{project_name}`: Retrieve project details, file list, stats, and README (syncing/cloning from GitHub into `workspace/<project_name>` if needed).
 - `GET /api/projects/{name}/files/{file_path}`: Retrieve content and metadata for a specific file in a project.
-- `POST /api/generate`: Initiate code generation or prompt execution on the target project, ensuring it is cloned and pulled up to date, returning an SSE stream, and pushing commits to GitHub.
+- `GET /api/runs/active`: Query current active or latest run status, returning `ActiveRunResponse` with accumulated logs.
+- `GET /api/runs/active/stream`: Stream ongoing run output (replays buffered history then streams live events) over text/plain or SSE.
+- `POST /api/generate`: Initiate code generation or prompt execution on the target project, ensuring it is cloned and pulled up to date, running via background `RunManager`, returning a live stream, and pushing commits to GitHub.
+- `GET /api/generate`: GET variant of code generation streaming endpoint.
 - `GET /api/projects/{name}/prompts`: Retrieve history of prompts for the specified project.
 
 ## 10. Configuration
@@ -166,7 +195,8 @@ The application relies on the following environment variables:
 - Test execution command: `.venv/bin/python -m unittest discover tests`.
 - Frontend build validation: `npm run build` executed in `frontend/`.
 - Covered test modules:
-  - `test_api_routes.py`: REST endpoint verification.
+  - `test_api_routes.py`: REST endpoint verification (including `/api/runs/active` and `/api/runs/active/stream`).
+  - `test_run_manager.py`: Background task orchestration, multi-subscriber queues, buffered log replaying, and state retention.
   - `test_code_creation.py`: Agent execution, repository clone/pull, streaming behavior, and dedicated GitHub pushing.
   - `test_github_service.py`: Git operations, token parsing, and user repo discovery.
   - `test_intent_service.py`: Classification of user prompts.
