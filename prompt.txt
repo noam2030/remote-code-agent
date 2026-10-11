@@ -63,6 +63,8 @@ Error: Process completed with exit code 1.
 57. i see in the cloud run console that the application which the remote-code-agent built, are deployed with container type. i want them to be built with source type.
 58. confirm
 59. retry
+60. merge
+
 
 
 
