@@ -80,7 +80,7 @@ The backend is structured under `backend/src/remote_code_agent`:
 - `services/intent_service.py`: Classifies user input into code creation/modification tasks or informational queries.
 - `services/project_service.py`: Discovers user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, preserves the user's project name and casing, and calculates repository statistics. Project syncing and deletion operate directly on dedicated GitHub repositories (`<owner>/<project_name>`) without reliance on any central output repository.
 - `services/prompt_service.py`: Parsing, updating, and synthesizing project prompt history in `prompt.txt` with fast fallback.
-- `services/github_service.py`: Automates dedicated GitHub repository creation (`<owner>/<project_name>`), initializes git, writes `.gitignore`, commits generated files, and pushes directly to `main` of the dedicated repository. Gracefully handles tokens lacking the GitHub `workflow` scope by retrying push with `.github/workflows` omitted if rejected by GitHub, ensuring project code and tests are always successfully committed and pushed.
+- `services/github_service.py`: Automates dedicated GitHub repository creation (`<owner>/<project_name>`), initializes git, writes `.gitignore`, commits generated files, and executes deterministic git pushes directly to `main` of the dedicated repository without mutating or deleting repository files. Requires a `GH_TOKEN` configured with `repo` and `workflow` scopes to publish workflows, and surfaces clear, actionable diagnostics if permission errors occur.
 - `server.py`: FastAPI application factory with CORS middleware and error handling.
 
 ## 7. Frontend

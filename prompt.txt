@@ -34,6 +34,8 @@
 34. merge
 35. 📦 [GitHub] Publishing generated code for project 'hello-2' to GitHub (branch: main)... ⚠️ [GitHub Notice] git push to noam2030/hello-2 failed: To https://github.com/noam2030/hello-2.git ! [remote rejected] main -> main (refusing to allow an OAuth App to create or update workflow .github/workflows/ci.yml without workflow scope) error: failed to push some refs to 'https://github.com/noam2030/hello-2.git'
 36. confirm
+37. i dont understand the fix...........                     # If rejected because the token lacks 'workflow' scope, omit .github/workflows and retry if rejected try something else???? what is that????? how it should be done??????
+38. confirm
 
 
 
