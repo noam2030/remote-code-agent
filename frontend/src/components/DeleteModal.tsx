@@ -35,7 +35,7 @@ export const DeleteModal: React.FC<DeleteModalProps> = ({
             onChange={(e) => setDeleteRemote(e.target.checked)}
             disabled={loading}
           />
-          <span>Also delete from GitHub repository (remote-code-agent-output/main)</span>
+          <span>Also delete dedicated repository from GitHub</span>
         </label>
 
         <p style={{ color: '#f87171', fontSize: '0.8rem' }}>This action cannot be undone.</p>

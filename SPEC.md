@@ -78,9 +78,9 @@ The backend is structured under `backend/src/remote_code_agent`:
 - `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, and file inspection endpoints.
 - `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity`. Ensures target workspace directory exists, and directs the agent to focus strictly on generating complete application code, tests, and deployment workflows directly to files. The agent does not create virtual environments (`.venv`), install dependencies, or run git commands. Once code generation finishes, the backend service automatically commits and pushes all created files to GitHub.
 - `services/intent_service.py`: Classifies user input into code creation/modification tasks or informational queries.
-- `services/project_service.py`: Discovers user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, preserves the user's project name and casing, and calculates repository statistics.
+- `services/project_service.py`: Discovers user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, preserves the user's project name and casing, and calculates repository statistics. Project syncing and deletion operate directly on dedicated GitHub repositories (`<owner>/<project_name>`) without reliance on any central output repository.
 - `services/prompt_service.py`: Parsing, updating, and synthesizing project prompt history in `prompt.txt` with fast fallback.
-- `services/github_service.py`: Automates dedicated GitHub repository creation (`<owner>/<project_name>`), initializes git, writes `.gitignore`, commits generated files, and pushes to `main`. Excludes temporary or cache files, and ensures clean git commits without errors.
+- `services/github_service.py`: Automates dedicated GitHub repository creation (`<owner>/<project_name>`), initializes git, writes `.gitignore`, commits generated files, and pushes directly to `main` of the dedicated repository. Entirely eliminates the deprecated `remote-code-agent-output` mono-repository and its fallbacks, and surfaces clear, sanitized git errors upon failure.
 - `server.py`: FastAPI application factory with CORS middleware and error handling.
 
 ## 7. Frontend
@@ -140,7 +140,7 @@ The application relies on the following environment variables:
 - `GEMINI_API_KEY`: API key for Gemini models and Google Antigravity SDK.
 - `GH_TOKEN` / `GITHUB_TOKEN`: GitHub personal access token with `repo` scope for repository management.
 - `AGENT_WORKSPACE`: Relative or absolute path to the local project workspace (default: `workspace`).
-- `GITHUB_OUTPUT_REPO`: Default GitHub repository name for central output catalog.
+- `GITHUB_TARGET_OWNER`: GitHub username / organization owning generated repositories (defaults dynamically to authenticated GitHub user or `noam2030`).
 - `GCP_OUTPUT_PROJECT_ID`: Target Google Cloud Project ID (`ai-learning-499409`).
 - `VERCEL_SCOPE`: Target Vercel team/scope for deployments (`noam-projects2`).
 - `VERCEL_TOKEN`: Vercel personal access token for automated frontend CI/CD deployments.

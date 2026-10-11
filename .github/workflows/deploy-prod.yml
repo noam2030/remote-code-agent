@@ -75,7 +75,7 @@ jobs:
             --region ${{ vars.GCP_REGION || 'us-central1' }} \
             --allow-unauthenticated \
             --timeout=3600 \
-            --set-env-vars AGENT_WORKSPACE=workspace,GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}",GH_TOKEN="${{ secrets.GH_TOKEN }}",GITHUB_OUTPUT_REPO=remote-code-agent-output
+            --set-env-vars AGENT_WORKSPACE=workspace,GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}",GH_TOKEN="${{ secrets.GH_TOKEN }}"
 
   deploy-frontend:
     name: Deploy Frontend to Vercel (Production)

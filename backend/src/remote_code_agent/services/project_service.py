@@ -571,39 +571,7 @@ def sync_project_from_github(
                 if copied_any:
                     return True
 
-    # 2. Fallback to central output repo
-    full_repo = resolve_output_repo_full_name(target_repo, env=env)
-    repo_url = get_authenticated_repo_url(full_repo, env=env)
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        res = subprocess.run(
-            ["git", "clone", "--depth", "1", repo_url, tmp_dir],
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-        if res.returncode != 0:
-            return False
-
-        src_proj = os.path.join(tmp_dir, clean_name)
-        if not os.path.isdir(src_proj):
-            return False
-
-        os.makedirs(target_dir, exist_ok=True)
-        copied_any = False
-        for item in os.listdir(src_proj):
-            if item == ".git":
-                continue
-            src_item = os.path.join(src_proj, item)
-            dst_item = os.path.join(target_dir, item)
-            if os.path.isdir(src_item):
-                shutil.copytree(src_item, dst_item, dirs_exist_ok=True)
-                copied_any = True
-            else:
-                shutil.copy2(src_item, dst_item)
-                copied_any = True
-
-        return copied_any
+    return False
 
 
 def get_project_details(project_name: str) -> dict[str, Any] | None:
@@ -721,67 +689,8 @@ def delete_project(
         if del_res.returncode == 0:
             remote_deleted = True
 
-    # 2. Attempt to clean from central output repository if configured
-    full_repo = resolve_output_repo_full_name(target_repo, env=env)
-    repo_url = get_authenticated_repo_url(full_repo, env=env)
-
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        repo_dir = os.path.join(tmp_dir, "output-repo")
-        clone_res = subprocess.run(
-            ["git", "clone", "--depth", "1", repo_url, repo_dir],
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-        if clone_res.returncode == 0:
-            proj_path = os.path.join(repo_dir, clean_name)
-            remote_existed = os.path.isdir(proj_path)
-
-            root_readme = os.path.join(repo_dir, "README.md")
-            readme_changed = False
-            if os.path.exists(root_readme):
-                with open(root_readme, "r", encoding="utf-8") as f:
-                    content = f.read()
-
-                new_lines = []
-                for line in content.splitlines():
-                    if f"[{clean_name}]" in line or f"./{clean_name}/" in line:
-                        readme_changed = True
-                        continue
-                    new_lines.append(line)
-
-                if readme_changed:
-                    with open(root_readme, "w", encoding="utf-8") as f:
-                        f.write("\n".join(new_lines) + "\n")
-
-            if remote_existed:
-                subprocess.run(["git", "rm", "-rf", clean_name], cwd=repo_dir, env=env, check=False)
-
-            if readme_changed:
-                subprocess.run(["git", "add", "README.md"], cwd=repo_dir, env=env, check=False)
-
-            if remote_existed or readme_changed:
-                subprocess.run(["git", "config", "user.name", "Remote Code Agent"], cwd=repo_dir, env=env, check=True)
-                subprocess.run(["git", "config", "user.email", "agent@remote-code-agent.local"], cwd=repo_dir, env=env, check=True)
-                subprocess.run(
-                    ["git", "commit", "-m", f"chore(delete): remove project {clean_name}"],
-                    cwd=repo_dir,
-                    env=env,
-                    capture_output=True,
-                    text=True,
-                )
-                push_res = subprocess.run(
-                    ["git", "push", "origin", "main"],
-                    cwd=repo_dir,
-                    env=env,
-                    capture_output=True,
-                    text=True,
-                )
-                if push_res.returncode == 0:
-                    remote_deleted = True
-
     if remote_deleted:
-        return True, f"Project '{clean_name}' successfully deleted locally and from GitHub."
+        return True, f"Project '{clean_name}' successfully deleted locally and from GitHub ({dedicated_repo})."
 
     if local_existed:
         return True, f"Project '{clean_name}' deleted from local workspace (was not present on GitHub)."

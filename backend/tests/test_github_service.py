@@ -69,18 +69,18 @@ class TestGithubService(unittest.TestCase):
             self.assertIn("No files were created", msg)
 
     def test_default_output_repo(self):
-        self.assertEqual(GITHUB_OUTPUT_REPO, "remote-code-agent-output")
+        self.assertEqual(GITHUB_OUTPUT_REPO, "")
 
     @patch("subprocess.run")
     def test_publish_project_to_github_mocked_flow(self, mock_run):
-        # Mock subprocess run to simulate successful git clone, commit, and push directly to main
+        # Mock subprocess run to simulate successful git clone, commit, and push directly to dedicated repo
         def mock_subprocess(cmd, **kwargs):
             m = MagicMock()
             m.returncode = 0
             if "api" in cmd and "user" in cmd:
                 m.stdout = "testuser\n"
-            elif "rev-parse" in cmd:
-                m.returncode = 0  # not empty
+            elif "status" in cmd and "--porcelain" in cmd:
+                m.stdout = "A  app.py\n"
             else:
                 m.stdout = ""
                 m.stderr = ""
@@ -98,10 +98,9 @@ class TestGithubService(unittest.TestCase):
                     tmp_dir,
                     "test-app-1234",
                     prompt="Create a test app",
-                    target_repo="remote-code-agent-output",
                 )
                 self.assertTrue(success)
-                self.assertEqual(info, "https://github.com/testuser/remote-code-agent-output/tree/main/test-app-1234")
+                self.assertEqual(info, "https://github.com/testuser/test-app-1234")
 
     def test_get_authenticated_repo_url(self):
         url_with_token = get_authenticated_repo_url("owner/repo", env={"GH_TOKEN": "my-secret-token"})
