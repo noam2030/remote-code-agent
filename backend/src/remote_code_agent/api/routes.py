@@ -63,12 +63,15 @@ async def api_get_project_file(project_name: str, file_path: str):
 
 
 @router.delete("/projects/{project_name}")
-async def api_delete_project(project_name: str):
-    """Deletes a project locally and deletes its remote GitHub directory."""
-    success, message = delete_project(project_name)
+async def api_delete_project(
+    project_name: str,
+    delete_remote: bool = Query(True, description="Whether to also delete the remote repository on GitHub"),
+):
+    """Deletes a project locally and optionally deletes its remote GitHub repository."""
+    success, message = delete_project(project_name, delete_remote=delete_remote)
     if not success:
-        raise HTTPException(status_code=400, detail=message)
-    return {"message": message, "project": project_name}
+        raise HTTPException(status_code=500, detail=message)
+    return {"status": "success", "message": message, "project": project_name}
 
 
 @router.get("/generate")
