@@ -60,6 +60,15 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         self.assertIn("--source .", config.system_instructions)
         self.assertIn("NEVER build docker images locally in GitHub Actions", config.system_instructions)
 
+        # Development workflow and project specification skills
+        self.assertIn("development-workflow", config.system_instructions)
+        self.assertIn("project-specification", config.system_instructions)
+        self.assertIn("SPEC.md", config.system_instructions)
+        self.assertIn("## 1. Overview", config.system_instructions)
+        self.assertIn("## 12. Deployment", config.system_instructions)
+        self.assertIn("Spec First, Then Code", config.system_instructions)
+        self.assertIn("Code as an Exact Reflection of SPEC.md", config.system_instructions)
+
     def test_agent_config_with_app_name(self):
         test_dir = os.path.join(BASE_WORKSPACE, "test-unit-custom")
         config = get_agent_config(test_dir, app_name="custom-project-name")
@@ -73,6 +82,13 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ai-learning-499409", config.system_instructions)
         self.assertIn("noam-projects2", config.system_instructions)
 
+        # Development workflow and project specification skills
+        self.assertIn("development-workflow", config.system_instructions)
+        self.assertIn("project-specification", config.system_instructions)
+        self.assertIn("SPEC.md", config.system_instructions)
+        self.assertIn("## 1. Overview", config.system_instructions)
+        self.assertIn("## 12. Deployment", config.system_instructions)
+
     def test_code_generator_alias(self):
         self.assertIs(code_generator.generate_code_stream, generate_code_stream)
         self.assertIs(code_generator.create_code_stream, create_code_stream)
@@ -82,10 +98,13 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
 
         mock_update = AsyncMock()
 
+        captured_agent = None
+
         class MockAgentCM:
             def __init__(self, config):
                 pass
             async def __aenter__(self):
+                nonlocal captured_agent
                 mock_agent = AsyncMock()
                 mock_resp = MagicMock()
                 mock_meta = MagicMock()
@@ -98,6 +117,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
                         yield None
                 mock_resp.chunks = empty_chunks()
                 mock_agent.chat.return_value = mock_resp
+                captured_agent = mock_agent
                 return mock_agent
             async def __aexit__(self, exc_type, exc_val, exc_tb):
                 pass
@@ -115,6 +135,13 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Consolidating master prompt specification in prompt.txt", output)
             self.assertIn("Master prompt specification updated in prompt.txt", output)
             self.assertIn("Successfully pushed code to GitHub repository", output)
+
+            # Verify agent was invoked with spec-first prompt discipline
+            self.assertIsNotNone(captured_agent)
+            chat_prompt = captured_agent.chat.call_args[0][0]
+            self.assertIn("SPEC FIRST", chat_prompt)
+            self.assertIn("ALL 12 MANDATORY SECTIONS", chat_prompt)
+            self.assertIn("CODE AS REFLECTION OF SPEC", chat_prompt)
 
     def test_info_retrieval_agent_config(self):
         test_dir = os.path.join(BASE_WORKSPACE, "test-info-dir")

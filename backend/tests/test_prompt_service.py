@@ -81,6 +81,9 @@ class TestPromptService(unittest.IsolatedAsyncioTestCase):
         self.assertIn("MUST use Source type", prompt)
         self.assertIn("--source .", prompt)
         self.assertIn("do NOT use docker build/push", prompt)
+        self.assertIn("SPEC.md", prompt)
+        self.assertIn("all 12 mandatory sections", prompt)
+        self.assertIn("Spec-First", prompt)
 
     def test_synthesize_prompts_fallback_incremental(self):
         initial = (
@@ -153,6 +156,9 @@ class TestPromptService(unittest.IsolatedAsyncioTestCase):
                 app_name="test-app",
             )
             self.assertIn("Consolidated Master Specification: test-app", result)
+            config_call = mock_google_antigravity.LocalAgentConfig.call_args
+            self.assertIn("SPEC.md", config_call.kwargs["system_instructions"])
+            self.assertIn("12 mandatory sections", config_call.kwargs["system_instructions"])
 
     async def test_update_project_master_prompt_e2e(self):
         # Test using deterministic fallback synthesizer to ensure fast, reliable test execution

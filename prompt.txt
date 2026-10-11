@@ -64,6 +64,10 @@ Error: Process completed with exit code 1.
 58. confirm
 59. retry
 60. merge
+61. i want that remote-code-agent will follow the skills you are using (development and spec)
+62. confirm
+
+
 
 
 
