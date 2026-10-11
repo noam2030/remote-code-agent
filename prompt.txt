@@ -31,6 +31,7 @@
 31. merge
 32. 📦 [GitHub] Publishing generated code for project 'hello-1' to GitHub (branch: main)... ⚠️ [GitHub Notice] Failed to clone repository noam2030/remote-code-agent-output: Cloning into '/tmp/tmpm9ozo51x/output-repo'... remote: Repository not found. fatal: repository 'https://github.com/noam2030/remote-code-agent-output.git/' not found. why it try to push to remote-code-agent-output? we change this logic. now it works on projects in my root github
 33. confirm
+34. merge
 
 
 
