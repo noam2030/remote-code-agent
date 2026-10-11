@@ -28,6 +28,8 @@
 28. Preserve canonical project casing (OpenTrain) from the catalog. ??? what is that?????? where this project is an exception??????????? Clarify in the agent prompt that the hosting platform automatically handles git versioning, repository creation, and publishing to GitHub. who is the hosting platfrom? the agent runs in google cloud run service. it has no git pre-instaelld? i do want to focus on writing code and push it to github, then github will run test and deply
 29. i dont understand why there is timeout? if doownloading a some packages, building or even writing code - take 10 minutes - where there is a time out? the container is running? why timeout?
 30. yes
+31. merge
+
 
 
 
