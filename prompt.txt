@@ -47,6 +47,8 @@
 47. confirm
 48. confirm
 49. merge
+50. i want ui changes. the left side list will not scroll the whole page. (the right side). will be only the hight of the page, and the list items will be scrolled. also the right side will be fixed as the screen hight, and the terminal area will be scrolled
+51. confirm
 
 
 

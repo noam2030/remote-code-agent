@@ -36,6 +36,10 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
   - On-demand file explorer drawer allows opening and inspecting source files and master prompt history (`prompt.txt`).
 - **Terminal & Log Viewer**: Real-time console view rendering color-coded output from backend SSE streams during code generation, testing, and GitHub pushing.
 - **Execution Controls**: Prompt input with quick actions to initiate generation, inspect architecture, or cancel in-progress operations.
+- **Fixed Viewport & Independent Pane Scrolling**:
+  - The application desktop layout is fixed to the screen height (`100vh`) with zero document-level page scrolling.
+  - The left sidebar fills the viewport height below the header with its header and search input fixed in place, while only the project items list (`.project-list`) scrolls vertically with contained overscroll.
+  - The right content area is fixed to the screen height (`overflow: hidden`). The target project banner and prompt input are fixed at the top, while the terminal panel flexes to consume the remaining height, with only the terminal output log area scrolling vertically.
 
 ## 4. Architecture
 The system consists of two primary tiers:
@@ -89,6 +93,7 @@ The frontend is structured under `frontend/`:
 - `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints and EventSource listeners.
 - `src/types/`: Interfaces for projects, generation events, file trees, and system status.
 - `src/App.tsx`: Top-level application state orchestrator, handling project creation persistence, active project selection with case-insensitivity, and code generation streaming.
+- `src/index.css`: Global styles and fixed viewport desktop layout (`100vh`) providing independent scrolling containers for sidebar projects and terminal logs.
 - `vercel.json`: Routing and static asset caching configuration.
 
 
