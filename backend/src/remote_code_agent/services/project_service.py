@@ -704,50 +704,89 @@ def delete_project(
 
     1. Removes local project directory from BASE_WORKSPACE if it exists.
     2. If delete_remote=True:
-       - Deletes dedicated GitHub repository (<owner>/<clean_name>) if present.
-       - Also cleans from central output repository if present.
+       - Discovers the exact dedicated GitHub repository (<owner>/<repo>) matching the project name.
+       - Deletes the remote repository via GitHub CLI ('gh repo delete <owner>/<repo> --yes').
+       - If deletion fails (e.g. lack of 'delete_repo' scope or permissions), fails fast and returns
+         clear diagnostic details.
     Returns (success, message).
     """
     clean_name = sanitize_project_name(project_name)
-    local_dir = os.path.join(BASE_WORKSPACE, clean_name)
 
-    local_existed = os.path.exists(local_dir)
-    if local_existed:
-        shutil.rmtree(local_dir, ignore_errors=True)
+    # Check both raw name and sanitized name for local directories
+    local_dirs = set()
+    for name_candidate in (project_name, clean_name):
+        candidate_dir = os.path.join(BASE_WORKSPACE, name_candidate)
+        if os.path.exists(candidate_dir):
+            local_dirs.add(candidate_dir)
+
+    local_existed = len(local_dirs) > 0
+    for l_dir in local_dirs:
+        shutil.rmtree(l_dir, ignore_errors=True)
 
     if not delete_remote:
-        return True, f"Project '{clean_name}' deleted from local workspace."
+        if local_existed:
+            return True, f"Project '{project_name}' deleted from local workspace."
+        return True, f"Project '{project_name}' does not exist in local workspace."
 
     env = get_github_env()
     is_authed, auth_msg = check_github_auth(env)
     if not is_authed:
         if local_existed:
-            return True, f"Project '{clean_name}' deleted locally, but GitHub authentication failed: {auth_msg}"
+            return False, f"Project '{project_name}' was deleted locally, but remote deletion failed: {auth_msg}"
         return False, f"GitHub authentication required to delete remote project: {auth_msg}"
 
     ensure_git_config(env)
     owner = get_github_owner(env)
-    dedicated_repo = f"{owner}/{clean_name}"
-    remote_deleted = False
 
-    # 1. Attempt to delete dedicated repository
-    view_res = subprocess.run(["gh", "repo", "view", dedicated_repo], env=env, capture_output=True, text=True)
-    if view_res.returncode == 0:
-        del_res = subprocess.run(
-            ["gh", "repo", "delete", dedicated_repo, "--yes"],
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-        if del_res.returncode == 0:
-            remote_deleted = True
+    # Resolve target repository candidates: check exact casing, sanitized slug, or user repo catalog
+    target_candidates = []
+    if "/" in project_name:
+        target_candidates.append(project_name)
+    else:
+        target_candidates.append(f"{owner}/{project_name}")
+        if clean_name != project_name:
+            target_candidates.append(f"{owner}/{clean_name}")
 
-    if remote_deleted:
-        return True, f"Project '{clean_name}' successfully deleted locally and from GitHub ({dedicated_repo})."
+    try:
+        user_repos = list_user_github_repositories(env=env)
+        for r in user_repos:
+            r_name = r.get("name", "")
+            if r_name.lower() in (project_name.lower(), clean_name.lower()):
+                full = f"{owner}/{r_name}"
+                if full not in target_candidates:
+                    target_candidates.insert(0, full)
+    except Exception:
+        pass
 
-    if local_existed:
-        return True, f"Project '{clean_name}' deleted from local workspace (was not present on GitHub)."
+    found_repo = None
+    for cand in target_candidates:
+        view_res = subprocess.run(["gh", "repo", "view", cand], env=env, capture_output=True, text=True)
+        if view_res.returncode == 0:
+            found_repo = cand
+            break
 
-    return True, f"Project '{clean_name}' does not exist locally or on GitHub."
+    if not found_repo:
+        if local_existed:
+            return True, f"Project '{project_name}' deleted from local workspace (no remote repository found on GitHub)."
+        return True, f"Project '{project_name}' does not exist locally or on GitHub."
+
+    # Execute repository deletion
+    del_res = subprocess.run(
+        ["gh", "repo", "delete", found_repo, "--yes"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if del_res.returncode != 0:
+        err_detail = (del_res.stderr or del_res.stdout or "").strip()
+        if "delete_repo" in err_detail or "403" in err_detail:
+            err_detail = (
+                f"GitHub token lacks 'delete_repo' scope (HTTP 403). "
+                f"Run 'gh auth refresh -h github.com -s delete_repo' or configure GH_TOKEN with the 'delete_repo' scope. "
+                f"Original error: {err_detail}"
+            )
+        return False, f"Failed to delete GitHub repository '{found_repo}': {err_detail}"
+
+    return True, f"Project '{project_name}' successfully deleted locally and from GitHub ({found_repo})."
 
 

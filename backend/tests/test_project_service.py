@@ -203,6 +203,73 @@ class TestProjectService(unittest.TestCase):
         self.assertFalse(success)
         self.assertIn("GitHub authentication required", msg)
 
+    @patch("subprocess.run")
+    def test_delete_project_remote_failure_delete_repo_scope(self, mock_run):
+        def mock_subprocess(cmd, **kwargs):
+            m = MagicMock()
+            if "view" in cmd:
+                m.returncode = 0
+                m.stdout = "noam2030/scope-fail-app"
+                m.stderr = ""
+            elif "delete" in cmd:
+                m.returncode = 1
+                m.stdout = ""
+                m.stderr = "HTTP 403: Must have admin rights to Repository. This API operation needs the \"delete_repo\" scope."
+            else:
+                m.returncode = 0
+                m.stdout = ""
+                m.stderr = ""
+            return m
+
+        mock_run.side_effect = mock_subprocess
+        test_proj = "scope-fail-app"
+        success, msg = delete_project(test_proj, delete_remote=True)
+        self.assertFalse(success)
+        self.assertIn("delete_repo", msg)
+        self.assertIn("HTTP 403", msg)
+
+    @patch("subprocess.run")
+    def test_delete_project_remote_failure_generic(self, mock_run):
+        def mock_subprocess(cmd, **kwargs):
+            m = MagicMock()
+            if "view" in cmd:
+                m.returncode = 0
+                m.stdout = "noam2030/generic-fail-app"
+                m.stderr = ""
+            elif "delete" in cmd:
+                m.returncode = 1
+                m.stdout = ""
+                m.stderr = "GraphQL: Could not resolve to a Repository"
+            else:
+                m.returncode = 0
+                m.stdout = ""
+                m.stderr = ""
+            return m
+
+        mock_run.side_effect = mock_subprocess
+        test_proj = "generic-fail-app"
+        success, msg = delete_project(test_proj, delete_remote=True)
+        self.assertFalse(success)
+        self.assertIn("Failed to delete GitHub repository", msg)
+        self.assertIn("Could not resolve to a Repository", msg)
+
+    @patch("subprocess.run")
+    def test_delete_project_casing_preserved(self, mock_run):
+        targeted_repos = []
+        def mock_subprocess(cmd, **kwargs):
+            m = MagicMock()
+            m.returncode = 0
+            if "view" in cmd:
+                repo_arg = cmd[cmd.index("view") + 1]
+                targeted_repos.append(repo_arg)
+            return m
+
+        mock_run.side_effect = mock_subprocess
+        test_proj = "OpenTrain"
+        success, msg = delete_project(test_proj, delete_remote=True)
+        self.assertTrue(success)
+        self.assertTrue(any("OpenTrain" in r for r in targeted_repos))
+
     def test_count_file_lines_and_inspect_project_files(self):
         from remote_code_agent.project_service import count_file_lines, inspect_project_files
 
