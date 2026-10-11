@@ -380,84 +380,6 @@ def list_remote_projects(
     except Exception:
         pass
 
-    # 2. Check the central output repository if configured to extract live URLs or legacy subdirectories
-    full_repo = resolve_output_repo_full_name(target_repo, env=env)
-    readme_content = ""
-    try:
-        readme_res = subprocess.run(
-            ["gh", "api", f"repos/{full_repo}/readme", "-q", ".content"],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if readme_res.returncode == 0 and readme_res.stdout.strip():
-            import base64
-
-            readme_content = base64.b64decode(readme_res.stdout.strip()).decode("utf-8", errors="ignore")
-    except Exception:
-        pass
-
-    readme_metadata = parse_readme_projects(readme_content)
-
-    # Attach live URLs from README metadata
-    for name, meta in readme_metadata.items():
-        if name in projects:
-            if meta.get("cloud_run_url") and not projects[name].get("cloud_run_url"):
-                projects[name]["cloud_run_url"] = meta.get("cloud_run_url")
-            if meta.get("vercel_url") and not projects[name].get("vercel_url"):
-                projects[name]["vercel_url"] = meta.get("vercel_url")
-            if meta.get("description") and not projects[name].get("description"):
-                projects[name]["description"] = meta.get("description")
-        elif not name.startswith(".") and name not in {"scripts", "tests"}:
-            projects[name] = {
-                "name": name,
-                "description": meta.get("description") or "",
-                "github_url": f"https://github.com/{full_repo}/tree/main/{name}",
-                "cloud_run_url": meta.get("cloud_run_url"),
-                "vercel_url": meta.get("vercel_url"),
-                "has_remote": True,
-            }
-
-    # Also check directory listing of central output repo if accessible
-    try:
-        contents_res = subprocess.run(
-            ["gh", "api", f"repos/{full_repo}/contents", "-q", ".[] | {name: .name, type: .type}"],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if contents_res.returncode == 0 and contents_res.stdout.strip():
-            import json
-
-            for line in contents_res.stdout.strip().splitlines():
-                if not line.strip():
-                    continue
-                try:
-                    item = json.loads(line)
-                    name = item.get("name")
-                    item_type = item.get("type")
-                    if (
-                        item_type == "dir"
-                        and name
-                        and not name.startswith(".")
-                        and name not in {"scripts", "tests"}
-                        and name not in projects
-                    ):
-                        projects[name] = {
-                            "name": name,
-                            "description": "",
-                            "github_url": f"https://github.com/{full_repo}/tree/main/{name}",
-                            "cloud_run_url": readme_metadata.get(name, {}).get("cloud_run_url"),
-                            "vercel_url": readme_metadata.get(name, {}).get("vercel_url"),
-                            "has_remote": True,
-                        }
-                except Exception:
-                    continue
-    except Exception:
-        pass
-
     return projects
 
 
@@ -528,39 +450,23 @@ def list_projects() -> list[dict[str, Any]]:
             "stats": {},
         }
 
-    # Overlay local projects
+    # Overlay local project metadata only for repositories that exist on GitHub
+    lower_to_key = {k.lower(): k for k in merged.keys()}
     for name, data in local_projects.items():
-        if name in merged:
-            merged[name]["is_local"] = True
-            merged[name]["local_path"] = data.get("local_path")
-            merged[name]["files"] = data.get("files", [])
-            merged[name]["files_count"] = data.get("files_count", 0)
-            merged[name]["files_detail"] = data.get("files_detail", [])
-            merged[name]["lines_of_code"] = data.get("lines_of_code", 0)
-            merged[name]["tokens_spent"] = data.get("tokens_spent", 0)
-            merged[name]["stats"] = data.get("stats", {})
-            if data.get("cloud_run_url") and not merged[name].get("cloud_run_url"):
-                merged[name]["cloud_run_url"] = data.get("cloud_run_url")
-            if data.get("vercel_url") and not merged[name].get("vercel_url"):
-                merged[name]["vercel_url"] = data.get("vercel_url")
-        else:
-            merged[name] = {
-                "name": name,
-                "description": "",
-                "github_url": f"https://github.com/{owner}/{name}",
-                "cloud_run_url": data.get("cloud_run_url"),
-                "vercel_url": data.get("vercel_url"),
-                "has_remote": False,
-                "is_local": True,
-                "is_private": False,
-                "local_path": data.get("local_path"),
-                "files": data.get("files", []),
-                "files_count": data.get("files_count", 0),
-                "files_detail": data.get("files_detail", []),
-                "lines_of_code": data.get("lines_of_code", 0),
-                "tokens_spent": data.get("tokens_spent", 0),
-                "stats": data.get("stats", {}),
-            }
+        matched_key = lower_to_key.get(name.lower())
+        if matched_key:
+            merged[matched_key]["is_local"] = True
+            merged[matched_key]["local_path"] = data.get("local_path")
+            merged[matched_key]["files"] = data.get("files", [])
+            merged[matched_key]["files_count"] = data.get("files_count", 0)
+            merged[matched_key]["files_detail"] = data.get("files_detail", [])
+            merged[matched_key]["lines_of_code"] = data.get("lines_of_code", 0)
+            merged[matched_key]["tokens_spent"] = data.get("tokens_spent", 0)
+            merged[matched_key]["stats"] = data.get("stats", {})
+            if data.get("cloud_run_url") and not merged[matched_key].get("cloud_run_url"):
+                merged[matched_key]["cloud_run_url"] = data.get("cloud_run_url")
+            if data.get("vercel_url") and not merged[matched_key].get("vercel_url"):
+                merged[matched_key]["vercel_url"] = data.get("vercel_url")
 
     # Return list sorted alphabetically by name
     return sorted(list(merged.values()), key=lambda p: p["name"])

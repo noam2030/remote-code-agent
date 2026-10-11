@@ -73,6 +73,9 @@ Error: Process completed with exit code 1.
 67. remove the deletion option totally
 68. confirm
 69. merge
+70. why do i see frontend and backend in the projects list? the list should be a reflection of github. in github i dont have these projects!!!!!! do not store these projects to any persistent.
+71. confirm
+72. merge
 
 
 

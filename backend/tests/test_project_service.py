@@ -156,6 +156,58 @@ class TestProjectService(unittest.TestCase):
         self.assertEqual(remote_proj["description"], "An app on github")
         self.assertEqual(remote_proj["github_url"], "https://github.com/noam2030/remote-only-app")
 
+    @patch("remote_code_agent.services.project_service.list_local_projects")
+    @patch("remote_code_agent.services.project_service.list_remote_projects")
+    def test_list_projects_strictly_reflects_github_and_excludes_non_github_local_dirs(
+        self, mock_remote, mock_local
+    ):
+        mock_remote.return_value = {
+            "my-repo": {
+                "name": "my-repo",
+                "description": "Repo on github",
+                "github_url": "https://github.com/noam2030/my-repo",
+                "cloud_run_url": None,
+                "vercel_url": None,
+                "has_remote": True,
+                "is_private": False,
+            }
+        }
+        mock_local.return_value = {
+            "my-repo": {
+                "name": "my-repo",
+                "is_local": True,
+                "lines_of_code": 120,
+                "files_count": 5,
+                "files": ["main.py"],
+            },
+            "frontend": {
+                "name": "frontend",
+                "is_local": True,
+                "lines_of_code": 500,
+            },
+            "backend": {
+                "name": "backend",
+                "is_local": True,
+                "lines_of_code": 500,
+            },
+            "random-local-folder": {
+                "name": "random-local-folder",
+                "is_local": True,
+                "lines_of_code": 50,
+            },
+        }
+
+        projects = list_projects()
+        names = [p["name"] for p in projects]
+        self.assertEqual(names, ["my-repo"])
+        self.assertNotIn("frontend", names)
+        self.assertNotIn("backend", names)
+        self.assertNotIn("random-local-folder", names)
+        # Verify local enrichment took place for the valid GitHub repo
+        my_repo = projects[0]
+        self.assertTrue(my_repo["is_local"])
+        self.assertEqual(my_repo["lines_of_code"], 120)
+
 
     def test_count_file_lines_and_inspect_project_files(self):
         from remote_code_agent.project_service import count_file_lines, inspect_project_files

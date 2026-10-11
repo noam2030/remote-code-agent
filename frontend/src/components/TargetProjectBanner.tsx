@@ -57,20 +57,6 @@ export const TargetProjectBanner: React.FC<TargetProjectBannerProps> = ({
             <span className="stat-label">Files:</span>
             <strong className="stat-val">{filesCount}</strong>
           </div>
-          <div
-            className="banner-stat-pill"
-            title="Persistent Data Stored in Google Cloud Firestore"
-            style={{
-              borderColor: 'rgba(245, 158, 11, 0.4)',
-              background: 'rgba(245, 158, 11, 0.1)',
-            }}
-          >
-            <span className="stat-icon">🔥</span>
-            <span className="stat-label">Firestore:</span>
-            <strong className="stat-val" style={{ color: '#fbbf24' }}>
-              {project.name}
-            </strong>
-          </div>
         </div>
       </div>
 
