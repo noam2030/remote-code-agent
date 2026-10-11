@@ -78,3 +78,4 @@ Error: Process completed with exit code 1.
 72. merge
 73. i want that i will be able to write a promt from my mac browser, then close it and open remote-code-agent application from my phone browser and keep viewing the proces and contuinue to promt from phone
 74. confirm
+75. merge
