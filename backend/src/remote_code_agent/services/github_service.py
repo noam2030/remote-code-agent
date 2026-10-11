@@ -237,11 +237,22 @@ def push_to_dedicated_project_repo(
         if create_res.returncode != 0:
             pass
 
+    ignored_patterns = {".git", ".venv", "venv", "__pycache__", ".pytest_cache", ".DS_Store", "node_modules"}
+
+    # Ensure a basic .gitignore exists in project_dir
+    gitignore_path = os.path.join(project_dir, ".gitignore")
+    if not os.path.exists(gitignore_path):
+        try:
+            with open(gitignore_path, "w", encoding="utf-8") as f:
+                f.write("__pycache__/\n*.py[cod]\n.venv/\nvenv/\nnode_modules/\n.pytest_cache/\n.DS_Store\n")
+        except Exception:
+            pass
+
     repo_url = get_authenticated_repo_url(project_repo, env=env)
     with tempfile.TemporaryDirectory() as tmp_dir:
         repo_dir = os.path.join(tmp_dir, "project-repo")
         clone_res = subprocess.run(["git", "clone", repo_url, repo_dir], env=env, capture_output=True, text=True)
-        if clone_res.returncode != 0:
+        if clone_res.returncode != 0 or not os.path.exists(repo_dir):
             os.makedirs(repo_dir, exist_ok=True)
             subprocess.run(["git", "init"], cwd=repo_dir, env=env, check=True)
             subprocess.run(["git", "remote", "add", "origin", repo_url], cwd=repo_dir, env=env, check=True)
@@ -250,27 +261,32 @@ def push_to_dedicated_project_repo(
         subprocess.run(["git", "config", "user.email", "agent@remote-code-agent.local"], cwd=repo_dir, env=env, check=True)
         subprocess.run(["git", "checkout", "-B", "main"], cwd=repo_dir, env=env, check=True)
 
-        # Copy generated files to root of the repo
+        # Copy generated files to root of the repo (excluding virtual environments and cache)
         for item in os.listdir(project_dir):
-            if item == ".git":
+            if item in ignored_patterns:
                 continue
             src = os.path.join(project_dir, item)
             dst = os.path.join(repo_dir, item)
             if os.path.isdir(src):
-                shutil.copytree(src, dst, dirs_exist_ok=True)
+                shutil.copytree(src, dst, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".venv", "venv", "__pycache__", ".pytest_cache", ".DS_Store", "node_modules"))
             else:
                 shutil.copy2(src, dst)
 
         subprocess.run(["git", "add", "."], cwd=repo_dir, env=env, check=True)
-        commit_msg = f"feat: build {app_name} autonomously with Antigravity CLI on Cloud"
-        subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_dir, env=env, check=True)
-        push_res = subprocess.run(["git", "push", "-u", "origin", "main"], cwd=repo_dir, env=env, capture_output=True, text=True)
-        if push_res.returncode != 0:
-            push_res = subprocess.run(["git", "push", "--force", "-u", "origin", "main"], cwd=repo_dir, env=env, capture_output=True, text=True)
+
+        # Check if there are changes to commit
+        status_res = subprocess.run(["git", "status", "--porcelain"], cwd=repo_dir, env=env, capture_output=True, text=True)
+        if status_res.stdout.strip():
+            commit_msg = f"feat: build {app_name} autonomously with Antigravity CLI on Cloud"
+            subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_dir, env=env, check=True)
+            push_res = subprocess.run(["git", "push", "-u", "origin", "main"], cwd=repo_dir, env=env, capture_output=True, text=True)
             if push_res.returncode != 0:
-                return False, f"git push to {project_repo} failed: {sanitize_git_output(push_res.stderr).strip()}"
+                push_res = subprocess.run(["git", "push", "--force", "-u", "origin", "main"], cwd=repo_dir, env=env, capture_output=True, text=True)
+                if push_res.returncode != 0:
+                    return False, f"git push to {project_repo} failed: {sanitize_git_output(push_res.stderr).strip()}"
 
         return True, f"https://github.com/{project_repo}"
+
 
 
 def publish_project_to_github(
@@ -372,13 +388,14 @@ def publish_project_to_github(
         # Copy generated application files into <app_name>/ directory
         target_app_dir = os.path.join(repo_dir, app_name)
         os.makedirs(target_app_dir, exist_ok=True)
+        ignored_patterns = {".git", ".venv", "venv", "__pycache__", ".pytest_cache", ".DS_Store", "node_modules"}
         for item in os.listdir(project_dir):
-            if item == ".git":
+            if item in ignored_patterns:
                 continue
             src_item = os.path.join(project_dir, item)
             dst_item = os.path.join(target_app_dir, item)
             if os.path.isdir(src_item):
-                shutil.copytree(src_item, dst_item, dirs_exist_ok=True)
+                shutil.copytree(src_item, dst_item, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".venv", "venv", "__pycache__", ".pytest_cache", ".DS_Store", "node_modules"))
             else:
                 shutil.copy2(src_item, dst_item)
 
@@ -394,21 +411,23 @@ def publish_project_to_github(
 
         # Stage and commit directly to main
         subprocess.run(["git", "add", "."], cwd=repo_dir, env=env, check=True)
-        commit_msg = f"feat({app_name}): add {app_name} generated by Remote Code Agent"
-        subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_dir, env=env, check=True)
+        status_res = subprocess.run(["git", "status", "--porcelain"], cwd=repo_dir, env=env, capture_output=True, text=True)
+        if status_res.stdout.strip():
+            commit_msg = f"feat({app_name}): add {app_name} generated by Remote Code Agent"
+            subprocess.run(["git", "commit", "-m", commit_msg], cwd=repo_dir, env=env, check=True)
 
-        # Push directly to main branch on GitHub (no PR needed)
-        push_res = subprocess.run(
-            ["git", "push", "origin", "main"],
-            cwd=repo_dir,
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-        if push_res.returncode != 0:
-            if dedicated_url:
-                return True, dedicated_url
-            return False, f"git push error: {sanitize_git_output(push_res.stderr).strip()}"
+            # Push directly to main branch on GitHub (no PR needed)
+            push_res = subprocess.run(
+                ["git", "push", "origin", "main"],
+                cwd=repo_dir,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            if push_res.returncode != 0:
+                if dedicated_url:
+                    return True, dedicated_url
+                return False, f"git push error: {sanitize_git_output(push_res.stderr).strip()}"
 
         if dedicated_url:
             return True, dedicated_url

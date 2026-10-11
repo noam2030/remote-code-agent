@@ -24,3 +24,11 @@
 24. when i create new project, it is gone. also when i click on 'open train' project it'a active state gone, while on builtwithai' it remains selected
 25. y
 26. merge
+27. when i create new project and ask to build simple application, for example hello world, the process starts but later get stack. no publish to github
+28. Preserve canonical project casing (OpenTrain) from the catalog. ??? what is that?????? where this project is an exception??????????? Clarify in the agent prompt that the hosting platform automatically handles git versioning, repository creation, and publishing to GitHub. who is the hosting platfrom? the agent runs in google cloud run service. it has no git pre-instaelld? i do want to focus on writing code and push it to github, then github will run test and deply
+29. i dont understand why there is timeout? if doownloading a some packages, building or even writing code - take 10 minutes - where there is a time out? the container is running? why timeout?
+30. yes
+
+
+
+

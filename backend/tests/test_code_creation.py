@@ -51,6 +51,8 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         self.assertIn("$PORT", config.system_instructions)
         self.assertIn("Google Cloud Firestore", config.system_instructions)
         self.assertIn("collection", config.system_instructions)
+        self.assertIn("Do NOT create virtual environments", config.system_instructions)
+        self.assertIn("Do NOT run git or gh commands", config.system_instructions)
 
     def test_agent_config_with_app_name(self):
         test_dir = os.path.join(BASE_WORKSPACE, "test-unit-custom")
