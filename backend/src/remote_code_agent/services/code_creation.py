@@ -63,7 +63,7 @@ def get_agent_config(project_dir: str, app_name: str | None = None) -> google.an
             "or a Dockerfile listening on host 0.0.0.0 and port defined by $PORT (default 8080).\n\n"
             "DEPLOYMENT WORKFLOWS:\n"
             "- Only generate GitHub Actions workflows in `.github/workflows/` (e.g. `.github/workflows/deploy.yml`) when automated deployment or CI/CD is explicitly requested by the user. Do NOT generate `.github/workflows/` for basic scripts or applications unless requested.\n"
-            "  * For Google Cloud Platform: Deploy containerized applications to Google Cloud Run in Google Cloud project 'ai-learning-499409' (region: 'us-central1', unauthenticated access, using secrets.GCP_SA_KEY). If deployment depends on secrets.GCP_SA_KEY, guard the deploy job with `if: ${{ secrets.GCP_SA_KEY != '' }}` so it runs when credentials are present and avoids failing if secrets are pending.\n"
+            "  * For Google Cloud Platform: Deploy containerized applications to Google Cloud Run in Google Cloud project 'ai-learning-499409' (region: 'us-central1', unauthenticated access, using secrets.GCP_SA_KEY). Use standard job conditionals `if: github.event_name == 'push' && github.ref == 'refs/heads/main'` (never reference `secrets` in job-level `if:` expressions, as GitHub Actions disallows `secrets` in job conditionals).\n"
             "  * For Vercel: Deploy web applications to Vercel team/scope 'noam-projects2' (e.g. using vercel-action or vercel CLI with secrets.VERCEL_TOKEN).\n\n"
             "PERSISTENCE & DATA STORAGE:\n"
             f"- Any persistent data for this app (such as database records, user input, state, items, notes, tasks) "
