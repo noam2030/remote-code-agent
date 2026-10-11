@@ -78,6 +78,9 @@ class TestPromptService(unittest.IsolatedAsyncioTestCase):
         self.assertIn("chat-stream", prompt)
         self.assertIn("never pass PORT in --set-env-vars", prompt)
         self.assertIn("--port 8080", prompt)
+        self.assertIn("MUST use Source type", prompt)
+        self.assertIn("--source .", prompt)
+        self.assertIn("do NOT use docker build/push", prompt)
 
     def test_synthesize_prompts_fallback_incremental(self):
         initial = (

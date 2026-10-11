@@ -56,6 +56,9 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("PORT is a reserved environment variable automatically injected by Cloud Run", config.system_instructions)
         self.assertIn("--port 8080", config.system_instructions)
+        self.assertIn("MANDATORY SOURCE TYPE DEPLOYMENT", config.system_instructions)
+        self.assertIn("--source .", config.system_instructions)
+        self.assertIn("NEVER build docker images locally in GitHub Actions", config.system_instructions)
 
     def test_agent_config_with_app_name(self):
         test_dir = os.path.join(BASE_WORKSPACE, "test-unit-custom")
@@ -64,6 +67,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         self.assertIn("custom-project-name-api", config.system_instructions)
         self.assertIn("custom-project-name-ui", config.system_instructions)
         self.assertIn("Google Cloud Run", config.system_instructions)
+        self.assertIn("MANDATORY SOURCE TYPE DEPLOYMENT", config.system_instructions)
         self.assertIn("PORT is a reserved environment variable automatically injected by Cloud Run", config.system_instructions)
         self.assertIn("Google Cloud Firestore", config.system_instructions)
         self.assertIn("ai-learning-499409", config.system_instructions)
