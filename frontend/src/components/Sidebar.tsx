@@ -8,7 +8,6 @@ interface SidebarProps {
   onSelectProject: (project: Project | null) => void
   onCreateProject?: (projectName: string) => void
   onRefresh: () => void
-  onDeleteProject?: (project: Project) => void
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -18,7 +17,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectProject,
   onCreateProject,
   onRefresh,
-  onDeleteProject,
 }) => {
   const [search, setSearch] = useState('')
   const [showNewBox, setShowNewBox] = useState(false)
@@ -138,18 +136,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     {isActive && <span className="active-tag">ACTIVE</span>}
-                    {onDeleteProject && (
-                      <button
-                        className="btn-card-delete"
-                        title="Delete project"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDeleteProject(proj)
-                        }}
-                      >
-                        🗑️
-                      </button>
-                    )}
                   </div>
                 </div>
 

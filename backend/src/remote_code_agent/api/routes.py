@@ -7,7 +7,6 @@ from fastapi.responses import StreamingResponse
 
 from remote_code_agent.services.code_creation import BASE_WORKSPACE, generate_code_stream
 from remote_code_agent.services.project_service import (
-    delete_project,
     get_project_details,
     get_project_file_content,
     list_projects,
@@ -61,17 +60,6 @@ async def api_get_project_file(project_name: str, file_path: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading file: {e}")
 
-
-@router.delete("/projects/{project_name}")
-async def api_delete_project(
-    project_name: str,
-    delete_remote: bool = Query(True, description="Whether to also delete the remote repository on GitHub"),
-):
-    """Deletes a project locally and optionally deletes its remote GitHub repository."""
-    success, message = delete_project(project_name, delete_remote=delete_remote)
-    if not success:
-        raise HTTPException(status_code=500, detail=message)
-    return {"status": "success", "message": message, "project": project_name}
 
 
 @router.get("/generate")
