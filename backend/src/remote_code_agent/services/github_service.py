@@ -290,7 +290,13 @@ def push_to_dedicated_project_repo(
                 push_res = subprocess.run(["git", "push", "--force", "-u", "origin", "main"], cwd=repo_dir, env=env, capture_output=True, text=True)
                 if push_res.returncode != 0:
                     err_msg = (push_res.stderr or push_res.stdout or "unknown git error").strip()
-                    return False, f"git push to {project_repo} failed: {sanitize_git_output(err_msg)}"
+                    sanitized_err = sanitize_git_output(err_msg)
+                    if "workflow" in err_msg.lower():
+                        return False, (
+                            f"git push to {project_repo} failed: GitHub refused push because GH_TOKEN lacks the 'workflow' scope. "
+                            f"Ensure your GitHub token has the 'workflow' scope enabled. Details: {sanitized_err}"
+                        )
+                    return False, f"git push to {project_repo} failed: {sanitized_err}"
 
         return True, f"https://github.com/{project_repo}"
 
