@@ -36,6 +36,7 @@
 36. confirm
 37. i dont understand the fix...........                     # If rejected because the token lacks 'workflow' scope, omit .github/workflows and retry if rejected try something else???? what is that????? how it should be done??????
 38. confirm
+39. merge
 
 
 
