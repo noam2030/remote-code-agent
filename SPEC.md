@@ -80,7 +80,7 @@ The backend is structured under `backend/src/remote_code_agent`:
 - `services/intent_service.py`: Classifies user input into code creation/modification tasks or informational queries.
 - `services/project_service.py`: Discovers user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, preserves the user's project name and casing, and calculates repository statistics. Project syncing and deletion operate directly on dedicated GitHub repositories (`<owner>/<project_name>`) without reliance on any central output repository.
 - `services/prompt_service.py`: Parsing, updating, and synthesizing project prompt history in `prompt.txt` with fast fallback.
-- `services/github_service.py`: Automates dedicated GitHub repository creation (`<owner>/<project_name>`), initializes git, writes `.gitignore`, commits generated files, and executes deterministic git pushes directly to `main` of the dedicated repository without mutating or deleting repository files. Requires a `GH_TOKEN` configured with `repo` and `workflow` scopes to publish workflows, and surfaces clear, actionable diagnostics if permission errors occur.
+- `services/github_service.py`: Automates dedicated GitHub repository creation (`<owner>/<project_name>`), initializes git, writes `.gitignore`, commits generated files, and executes deterministic git pushes directly to `main` of the dedicated repository without mutating or deleting repository files. Automatically provisions deployment secrets (`GCP_SA_KEY`, `VERCEL_TOKEN`) from the backend environment to target repositories via `gh secret set`, enabling generated CI/CD workflows to execute out-of-the-box. Requires a `GH_TOKEN` configured with `repo` and `workflow` scopes, surfacing clear diagnostics if permission errors occur.
 - `server.py`: FastAPI application factory with CORS middleware and error handling.
 
 ## 7. Frontend
@@ -142,6 +142,7 @@ The application relies on the following environment variables:
 - `AGENT_WORKSPACE`: Relative or absolute path to the local project workspace (default: `workspace`).
 - `GITHUB_TARGET_OWNER`: GitHub username / organization owning generated repositories (defaults dynamically to authenticated GitHub user or `noam2030`).
 - `GCP_OUTPUT_PROJECT_ID`: Target Google Cloud Project ID (`ai-learning-499409`).
+- `GCP_SA_KEY`: Service account credentials JSON for Google Cloud deployments, automatically provisioned to generated repositories to enable Cloud Run deployments.
 - `VERCEL_SCOPE`: Target Vercel team/scope for deployments (`noam-projects2`).
 - `VERCEL_TOKEN`: Vercel personal access token for automated frontend CI/CD deployments.
 - `VERCEL_ORG_ID`: Vercel Team ID (`team_abCCfq6oAKpFKOLdLU0hsGg5`).
