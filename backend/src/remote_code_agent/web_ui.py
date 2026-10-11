@@ -40,7 +40,9 @@ def get_web_ui_html() -> str:
       font-family: var(--ui-font);
       background-color: var(--bg-main);
       color: var(--text-main);
-      min-height: 100vh;
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
     }
@@ -151,10 +153,38 @@ def get_web_ui_html() -> str:
     }
 
     @media (max-width: 900px) {
+      body {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+      }
+
       main {
         grid-template-columns: 1fr;
         height: auto;
+        max-height: none;
         overflow: visible;
+      }
+
+      .sidebar {
+        height: 380px;
+        max-height: 45vh;
+      }
+
+      .content-area {
+        padding: 1rem 0.75rem;
+        gap: 1rem;
+        height: auto;
+        max-height: none;
+        overflow: visible;
+      }
+
+      .terminal-card {
+        min-height: 350px;
+      }
+
+      .terminal-output {
+        height: 320px;
       }
     }
 
@@ -165,6 +195,9 @@ def get_web_ui_html() -> str:
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
     }
 
     .sidebar-header {
@@ -173,6 +206,7 @@ def get_web_ui_html() -> str:
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-shrink: 0;
     }
 
     .sidebar-title {
@@ -195,6 +229,7 @@ def get_web_ui_html() -> str:
     .sidebar-actions {
       display: flex;
       gap: 0.4rem;
+      flex-shrink: 0;
     }
 
     .icon-btn {
@@ -217,6 +252,7 @@ def get_web_ui_html() -> str:
       padding: 0.75rem 1.25rem;
       background: rgba(17, 24, 39, 0.6);
       border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
     }
 
     .create-input-group {
@@ -258,6 +294,7 @@ def get_web_ui_html() -> str:
     .search-box {
       padding: 0.75rem 1.25rem;
       border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
     }
 
     .search-input {
@@ -277,7 +314,9 @@ def get_web_ui_html() -> str:
 
     .project-list {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
+      overscroll-behavior: contain;
       padding: 0.75rem;
       display: flex;
       flex-direction: column;
@@ -391,9 +430,12 @@ def get_web_ui_html() -> str:
       display: flex;
       flex-direction: column;
       height: 100%;
-      overflow-y: auto;
-      padding: 1.5rem;
-      gap: 1.5rem;
+      max-height: 100%;
+      overflow: hidden;
+      padding: 1.25rem 1.5rem;
+      gap: 1rem;
+      box-sizing: border-box;
+      min-height: 0;
     }
 
     /* Active Project Banner */
@@ -401,12 +443,13 @@ def get_web_ui_html() -> str:
       background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
       border: 1px solid var(--border-color);
       border-radius: 12px;
-      padding: 1.25rem 1.5rem;
+      padding: 1rem 1.25rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
-      gap: 1rem;
+      gap: 0.75rem;
+      flex-shrink: 0;
     }
 
     .banner-title {
@@ -533,10 +576,12 @@ def get_web_ui_html() -> str:
       background: var(--bg-card);
       border: 1px solid var(--border-color);
       border-radius: 8px;
-      padding: 1rem;
+      padding: 0.85rem 1rem;
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 0.5rem;
+      flex-shrink: 0;
+      max-height: 180px;
     }
 
     .files-header {
@@ -545,14 +590,16 @@ def get_web_ui_html() -> str:
       justify-content: space-between;
       font-size: 0.85rem;
       font-weight: 600;
+      flex-shrink: 0;
     }
 
     .files-list {
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
-      max-height: 240px;
+      max-height: 120px;
       overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     .file-item-card {
@@ -754,10 +801,11 @@ def get_web_ui_html() -> str:
       background: var(--bg-card);
       border: 1px solid var(--border-color);
       border-radius: 12px;
-      padding: 1.25rem 1.5rem;
+      padding: 1rem 1.25rem;
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      gap: 0.75rem;
+      flex-shrink: 0;
     }
 
     .card-header-row {
@@ -808,11 +856,12 @@ def get_web_ui_html() -> str:
 
     .prompt-textarea {
       width: 100%;
-      min-height: 110px;
+      min-height: 70px;
+      max-height: 120px;
       background: var(--bg-main);
       border: 1px solid var(--border-color);
       color: var(--text-main);
-      padding: 0.85rem;
+      padding: 0.7rem 0.85rem;
       border-radius: 8px;
       font-size: 0.9rem;
       font-family: inherit;
@@ -879,6 +928,8 @@ def get_web_ui_html() -> str:
       flex-direction: column;
       overflow: hidden;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      flex: 1;
+      min-height: 0;
     }
 
     .terminal-header {
@@ -888,6 +939,7 @@ def get_web_ui_html() -> str:
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-shrink: 0;
     }
 
     .terminal-title {
@@ -971,8 +1023,11 @@ def get_web_ui_html() -> str:
       font-size: 1.2rem;
       line-height: 1.75;
       color: #e2e8f0;
-      height: 380px;
+      flex: 1;
+      min-height: 0;
+      height: 100%;
       overflow-y: auto;
+      overscroll-behavior: contain;
       white-space: pre-wrap;
       word-break: break-word;
     }
