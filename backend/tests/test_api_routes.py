@@ -63,13 +63,6 @@ class TestApiRoutes(unittest.TestCase):
             self.assertEqual(data["file_path"], "main.py")
             self.assertEqual(data["lines"], 1)
 
-    def test_delete_project_endpoint(self):
-        with patch("remote_code_agent.server.delete_project") as mock_delete:
-            mock_delete.return_value = (True, "Project 'test-app' deleted successfully")
-            response = self.client.delete("/api/projects/test-app")
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["project"], "test-app")
-
 
 if __name__ == "__main__":
     unittest.main()

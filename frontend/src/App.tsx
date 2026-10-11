@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import {
-  deleteProject,
   generateCodeStream,
   getFileContent,
   getProject,
@@ -8,7 +7,6 @@ import {
 } from './services/api'
 import type { FileContentResponse, Project } from './types'
 
-import { DeleteModal } from './components/DeleteModal'
 import { FilesDrawer } from './components/FilesDrawer'
 import { FileViewerModal } from './components/FileViewerModal'
 import { Header } from './components/Header'
@@ -31,8 +29,6 @@ export function App() {
   const [loadingFile, setLoadingFile] = useState(false)
   const [masterPromptFile, setMasterPromptFile] = useState<FileContentResponse | null>(null)
   const [loadingMasterPrompt, setLoadingMasterPrompt] = useState(false)
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [deletingProject, setDeletingProject] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   const showToast = (msg: string) => {
@@ -147,22 +143,6 @@ export function App() {
     }
   }
 
-  const handleDeleteConfirm = async (deleteRemote: boolean) => {
-    if (!selectedProject) return
-    setDeletingProject(true)
-    try {
-      const res = await deleteProject(selectedProject.name, deleteRemote)
-      showToast(res.message || `Deleted project '${selectedProject.name}'`)
-      setSelectedProject(null)
-      setDeleteModalOpen(false)
-      await fetchProjects()
-    } catch (err: any) {
-      showToast(`Failed to delete: ${err.message}`)
-    } finally {
-      setDeletingProject(false)
-    }
-  }
-
   const handleGenerate = async (prompt: string, targetProject?: string) => {
     setIsGenerating(true)
     setStreamLogs('')
@@ -201,10 +181,6 @@ export function App() {
           onSelectProject={handleSelectProject}
           onCreateProject={handleCreateProject}
           onRefresh={fetchProjects}
-          onDeleteProject={(proj) => {
-            setSelectedProject(proj)
-            setDeleteModalOpen(true)
-          }}
         />
 
         <section className="content-area">
@@ -214,7 +190,6 @@ export function App() {
             filesOpen={filesDrawerOpen}
             onToggleFiles={() => setFilesDrawerOpen((prev) => !prev)}
             onOpenMasterPrompt={handleOpenMasterPrompt}
-            onOpenDelete={() => setDeleteModalOpen(true)}
           />
 
           <FilesDrawer
@@ -247,14 +222,6 @@ export function App() {
         promptFile={masterPromptFile}
         loading={loadingMasterPrompt}
         onClose={() => setMasterPromptFile(null)}
-      />
-
-      <DeleteModal
-        isOpen={deleteModalOpen}
-        projectName={selectedProject?.name || null}
-        loading={deletingProject}
-        onConfirm={handleDeleteConfirm}
-        onCancel={() => setDeleteModalOpen(false)}
       />
     </div>
   )

@@ -79,22 +79,6 @@ export async function getFileContent(
   return res.json()
 }
 
-export async function deleteProject(
-  name: string,
-  deleteRemote = true
-): Promise<{ status: string; message: string; project: string }> {
-  const res = await fetch(
-    resolveUrl(
-      `/api/projects/${encodeURIComponent(name)}?delete_remote=${deleteRemote ? 'true' : 'false'}`
-    ),
-    { method: 'DELETE' }
-  )
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Failed to delete project '${name}': HTTP ${res.status}`)
-  }
-  return res.json()
-}
 
 export async function generateCodeStream(
   prompt: string,

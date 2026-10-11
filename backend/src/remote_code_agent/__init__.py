@@ -16,7 +16,6 @@ from remote_code_agent.services.code_creation import (
     get_agent_config,
 )
 from remote_code_agent.services.project_service import (
-    delete_project,
     get_project_details,
     list_projects,
     sanitize_project_name,
@@ -48,7 +47,6 @@ __all__ = [
     "get_agent_config",
     "list_projects",
     "get_project_details",
-    "delete_project",
     "sanitize_project_name",
     "sync_project_from_github",
     "get_project_prompt_path",

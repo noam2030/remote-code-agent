@@ -9,7 +9,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from remote_code_agent.project_service import (
     BASE_WORKSPACE,
-    delete_project,
     extract_deployment_urls,
     get_project_details,
     list_local_projects,
@@ -157,118 +156,6 @@ class TestProjectService(unittest.TestCase):
         self.assertEqual(remote_proj["description"], "An app on github")
         self.assertEqual(remote_proj["github_url"], "https://github.com/noam2030/remote-only-app")
 
-    def test_delete_project_local_only(self):
-        test_proj = "test-delete-local-app"
-        proj_dir = os.path.join(BASE_WORKSPACE, test_proj)
-        os.makedirs(proj_dir, exist_ok=True)
-        with open(os.path.join(proj_dir, "app.py"), "w") as f:
-            f.write("print('to be deleted')")
-
-        self.assertTrue(os.path.exists(proj_dir))
-        success, msg = delete_project(test_proj, delete_remote=False)
-        self.assertTrue(success)
-        self.assertFalse(os.path.exists(proj_dir))
-        self.assertIn("deleted from local workspace", msg)
-
-    @patch("subprocess.run")
-    def test_delete_project_remote_mocked(self, mock_run):
-        def mock_subprocess(cmd, **kwargs):
-            m = MagicMock()
-            m.returncode = 0
-            if "clone" in cmd:
-                clone_dest = cmd[-1]
-                p_dir = os.path.join(clone_dest, "mock-delete-app")
-                os.makedirs(p_dir, exist_ok=True)
-                readme_path = os.path.join(clone_dest, "README.md")
-                with open(readme_path, "w") as f:
-                    f.write("# Projects\n- [mock-delete-app](./mock-delete-app/)\n- [other-app](./other-app/)\n")
-            return m
-
-        mock_run.side_effect = mock_subprocess
-
-        test_proj = "mock-delete-app"
-        local_dir = os.path.join(BASE_WORKSPACE, test_proj)
-        os.makedirs(local_dir, exist_ok=True)
-
-        success, msg = delete_project(test_proj, delete_remote=True)
-        self.assertTrue(success)
-        self.assertFalse(os.path.exists(local_dir))
-        self.assertIn("successfully deleted", msg)
-
-    @patch("remote_code_agent.services.project_service.check_github_auth")
-    def test_delete_project_remote_unauthenticated(self, mock_auth):
-        mock_auth.return_value = (False, "GitHub authentication missing")
-        test_proj = "remote-unauthed-app"
-        success, msg = delete_project(test_proj, delete_remote=True)
-        self.assertFalse(success)
-        self.assertIn("GitHub authentication required", msg)
-
-    @patch("subprocess.run")
-    def test_delete_project_remote_failure_delete_repo_scope(self, mock_run):
-        def mock_subprocess(cmd, **kwargs):
-            m = MagicMock()
-            if "view" in cmd:
-                m.returncode = 0
-                m.stdout = "noam2030/scope-fail-app"
-                m.stderr = ""
-            elif "delete" in cmd:
-                m.returncode = 1
-                m.stdout = ""
-                m.stderr = "HTTP 403: Must have admin rights to Repository. This API operation needs the \"delete_repo\" scope."
-            else:
-                m.returncode = 0
-                m.stdout = ""
-                m.stderr = ""
-            return m
-
-        mock_run.side_effect = mock_subprocess
-        test_proj = "scope-fail-app"
-        success, msg = delete_project(test_proj, delete_remote=True)
-        self.assertFalse(success)
-        self.assertIn("delete_repo", msg)
-        self.assertIn("HTTP 403", msg)
-
-    @patch("subprocess.run")
-    def test_delete_project_remote_failure_generic(self, mock_run):
-        def mock_subprocess(cmd, **kwargs):
-            m = MagicMock()
-            if "view" in cmd:
-                m.returncode = 0
-                m.stdout = "noam2030/generic-fail-app"
-                m.stderr = ""
-            elif "delete" in cmd:
-                m.returncode = 1
-                m.stdout = ""
-                m.stderr = "GraphQL: Could not resolve to a Repository"
-            else:
-                m.returncode = 0
-                m.stdout = ""
-                m.stderr = ""
-            return m
-
-        mock_run.side_effect = mock_subprocess
-        test_proj = "generic-fail-app"
-        success, msg = delete_project(test_proj, delete_remote=True)
-        self.assertFalse(success)
-        self.assertIn("Failed to delete GitHub repository", msg)
-        self.assertIn("Could not resolve to a Repository", msg)
-
-    @patch("subprocess.run")
-    def test_delete_project_casing_preserved(self, mock_run):
-        targeted_repos = []
-        def mock_subprocess(cmd, **kwargs):
-            m = MagicMock()
-            m.returncode = 0
-            if "view" in cmd:
-                repo_arg = cmd[cmd.index("view") + 1]
-                targeted_repos.append(repo_arg)
-            return m
-
-        mock_run.side_effect = mock_subprocess
-        test_proj = "OpenTrain"
-        success, msg = delete_project(test_proj, delete_remote=True)
-        self.assertTrue(success)
-        self.assertTrue(any("OpenTrain" in r for r in targeted_repos))
 
     def test_count_file_lines_and_inspect_project_files(self):
         from remote_code_agent.project_service import count_file_lines, inspect_project_files

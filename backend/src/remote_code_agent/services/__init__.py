@@ -19,7 +19,6 @@ from remote_code_agent.services.github_service import (
 )
 from remote_code_agent.services.project_service import (
     count_file_lines,
-    delete_project,
     get_project_details,
     get_project_file_content,
     inspect_project_files,
@@ -55,7 +54,6 @@ __all__ = [
     "list_projects",
     "get_project_details",
     "get_project_file_content",
-    "delete_project",
     "sanitize_project_name",
     "sync_project_from_github",
     "count_file_lines",

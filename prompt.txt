@@ -70,6 +70,8 @@ Error: Process completed with exit code 1.
 64. the deletion of project doent work
 65. confirm
 66. merge
+67. remove the deletion option totally
+68. confirm
 
 
 

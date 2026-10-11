@@ -7,7 +7,6 @@ interface TargetProjectBannerProps {
   filesOpen: boolean
   onToggleFiles: () => void
   onOpenMasterPrompt: () => void
-  onOpenDelete: () => void
 }
 
 export const TargetProjectBanner: React.FC<TargetProjectBannerProps> = ({
@@ -16,7 +15,6 @@ export const TargetProjectBanner: React.FC<TargetProjectBannerProps> = ({
   filesOpen,
   onToggleFiles,
   onOpenMasterPrompt,
-  onOpenDelete,
 }) => {
   if (!project) {
     return (
@@ -119,9 +117,6 @@ export const TargetProjectBanner: React.FC<TargetProjectBannerProps> = ({
           onClick={onToggleFiles}
         >
           📁 Project Files ( {filesCount} )
-        </button>
-        <button className="action-btn action-btn-danger" onClick={onOpenDelete}>
-          🗑️ Delete Project
         </button>
       </div>
     </div>

@@ -556,21 +556,6 @@ def get_web_ui_html() -> str:
       color: #fff;
     }
 
-    .btn-card-delete {
-      background: transparent;
-      border: none;
-      color: var(--text-dim);
-      font-size: 0.8rem;
-      cursor: pointer;
-      padding: 0.15rem 0.35rem;
-      border-radius: 4px;
-      transition: all 0.15s;
-    }
-    .btn-card-delete:hover {
-      background: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
-    }
-
     /* Files Viewer Drawer */
     .files-panel {
       background: var(--bg-card);
@@ -1194,9 +1179,6 @@ def get_web_ui_html() -> str:
           <button id="btnToggleFiles" class="action-btn action-btn-secondary">
             📂 Project Files (<span id="bannerFileCount">0</span>)
           </button>
-          <button id="btnDeleteProject" class="action-btn action-btn-danger" style="display: none;">
-            🗑️ Delete Project
-          </button>
         </div>
       </div>
 
@@ -1360,7 +1342,6 @@ def get_web_ui_html() -> str:
     const bannerFilesVal = document.getElementById('bannerFilesVal');
     const btnToggleFiles = document.getElementById('btnToggleFiles');
     const btnViewMasterPrompt = document.getElementById('btnViewMasterPrompt');
-    const btnDeleteProject = document.getElementById('btnDeleteProject');
     const filesPanel = document.getElementById('filesPanel');
     const filesListEl = document.getElementById('filesList');
 
@@ -1453,7 +1434,6 @@ def get_web_ui_html() -> str:
               </span>
               <div style="display: flex; align-items: center; gap: 0.35rem;">
                 ${isActive ? '<span class="active-tag">Active</span>' : ''}
-                <button class="btn-card-delete" title="Delete project" onclick="event.stopPropagation(); requestDeleteProject('${escapeHtml(p.name)}')">🗑️</button>
               </div>
             </div>
             <div class="project-links">
@@ -1535,7 +1515,6 @@ def get_web_ui_html() -> str:
         bannerGithubLink.style.display = 'none';
       }
 
-      btnDeleteProject.style.display = 'inline-flex';
       btnViewMasterPrompt.style.display = 'none';
 
       renderProjectsList();
@@ -1784,61 +1763,6 @@ def get_web_ui_html() -> str:
       setTimeout(() => { btnCopyTerminal.textContent = originalText; }, 1500);
     });
 
-    // Delete Project Request
-    async function requestDeleteProject(name) {
-      if (!name) return;
-      const confirmed = confirm(
-        `Are you sure you want to delete project "${name}"?\\n\\n` +
-        `This will permanently remove the project from both your local workspace and the GitHub repository.`
-      );
-      if (!confirmed) return;
-
-      terminalOutput.textContent += `\\n🗑️ [Delete] Deleting project "${name}" from local workspace and GitHub...\\n`;
-      terminalOutput.scrollTop = terminalOutput.scrollHeight;
-
-      try {
-        const res = await fetch(`/api/projects/${encodeURIComponent(name)}?delete_remote=true`, {
-          method: 'DELETE',
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.detail || 'Failed to delete project');
-        }
-
-        terminalOutput.textContent += `✅ [Delete] ${data.message}\\n`;
-        terminalOutput.scrollTop = terminalOutput.scrollHeight;
-
-        if (selectedProject && selectedProject.name === name) {
-          selectedProject = null;
-        }
-
-        await loadProjects();
-
-        if (projects.length === 0) {
-          bannerProjectName.textContent = 'No projects';
-          noticeTargetName.textContent = 'create or select a project';
-          footerTargetName.textContent = 'workspace';
-          bannerVercelLink.style.display = 'none';
-          bannerLiveLink.style.display = 'none';
-          bannerGithubLink.style.display = 'none';
-          btnDeleteProject.style.display = 'none';
-          bannerFileCount.textContent = '0';
-          bannerStatsRow.style.display = 'none';
-          filesListEl.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-dim);">No files found.</span>';
-        }
-      } catch (err) {
-        console.error('Delete error:', err);
-        terminalOutput.textContent += `❌ [Delete Error] ${err.message}\\n`;
-        terminalOutput.scrollTop = terminalOutput.scrollHeight;
-        alert(`Failed to delete project "${name}": ${err.message}`);
-      }
-    }
-
-    btnDeleteProject.addEventListener('click', () => {
-      if (selectedProject) {
-        requestDeleteProject(selectedProject.name);
-      }
-    });
 
     // Execute Generation Stream
     async function startGeneration() {
