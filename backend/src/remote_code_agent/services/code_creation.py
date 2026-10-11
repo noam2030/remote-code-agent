@@ -1,6 +1,7 @@
 """Module responsible for autonomous code creation using Google Antigravity Agent."""
 
 import os
+import shutil
 from typing import AsyncGenerator
 
 import google.antigravity
@@ -51,17 +52,17 @@ def get_agent_config(project_dir: str, app_name: str | None = None) -> google.an
     target_name = app_name or os.path.basename(project_dir)
     return google.antigravity.LocalAgentConfig(
         system_instructions=(
-            f"You are Antigravity CLI on cloud. Act exactly as Antigravity CLI does. "
-            f"When asked to build an application, write the code, push it to my GitHub repository with the name of the project ('{target_name}') and, "
-            f"if asked to deploy, add GitHub workflow to deploy. "
-            "You can use ai-learning Google Cloud project and Vercel noam-projects2.\n\n"
+            f"You are Antigravity CLI on Cloud building the project '{target_name}'. "
+            "Your role is to write complete, production-ready application code, automated tests, and deployment files directly into the workspace.\n\n"
             f"Operational Guidelines for Project '{target_name}':\n"
-            "- Write complete, production-ready code inside your current project workspace.\n"
-            "- Examine any existing files in the workspace and implement the requested changes or new features cleanly.\n"
+            "- Write complete, high-quality application code and automated tests directly using file tools (write_to_file).\n"
+            "- Do NOT create virtual environments (.venv/venv) and do NOT run package installations (pip install/npm install). "
+            "Define all dependencies in requirements.txt or package.json for automated installation in CI/CD and production.\n"
+            "- Do NOT run git or gh commands — git initialization, repository creation, and publishing to GitHub are handled automatically by the backend platform.\n"
             "- Ensure applications provide an interactive web interface or HTTP API (e.g. FastAPI, Flask, Streamlit, Express, React, or HTML/JS) "
             "or a Dockerfile listening on host 0.0.0.0 and port defined by $PORT (default 8080).\n\n"
             "DEPLOYMENT WORKFLOWS:\n"
-            "- If asked to deploy, add automated GitHub Actions workflows in `.github/workflows/` (e.g. `.github/workflows/deploy.yml` or `.github/workflows/deploy-prod.yml`):\n"
+            "- When deployment is requested or appropriate, generate automated GitHub Actions workflows in `.github/workflows/` (e.g. `.github/workflows/deploy.yml`):\n"
             "  * For Google Cloud Platform: Deploy containerized applications to Google Cloud Run in Google Cloud project 'ai-learning-499409' (region: 'us-central1', unauthenticated access, using secrets.GCP_SA_KEY).\n"
             "  * For Vercel: Deploy web applications to Vercel team/scope 'noam-projects2' (e.g. using vercel-action or vercel CLI with secrets.VERCEL_TOKEN).\n\n"
             "PERSISTENCE & DATA STORAGE:\n"
@@ -71,8 +72,7 @@ def get_agent_config(project_dir: str, app_name: str | None = None) -> google.an
             "NEVER use ephemeral local SQLite or local filesystem files for persistent application data on Google Cloud Run, "
             "as local files are destroyed when Cloud Run instances restart or scale down. "
             "Use the official Google Cloud Firestore client library (`google-cloud-firestore` in Python, `@google-cloud/firestore` in Node.js) "
-            "with Application Default Credentials (ADC) against database '(default)' in project 'ai-learning-499409' "
-            "(read from GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable with fallback to 'ai-learning-499409'). "
+            "with Application Default Credentials (ADC) against database '(default)' in project 'ai-learning-499409'. "
             "Ensure `google-cloud-firestore` is included in requirements.txt (or `@google-cloud/firestore` in package.json). "
             "Always include graceful local fallback or mocking (e.g., an in-memory dictionary or mock store when GCP credentials are not present locally) "
             "so automated unit tests run and pass offline without needing active cloud credentials.\n\n"
@@ -131,7 +131,11 @@ async def generate_code_stream(
     is_info = is_info_retrieval_request(prompt)
 
     if project_name and project_name.strip():
-        app_name = sanitize_project_name(project_name.strip())
+        raw_name = project_name.strip()
+        all_projs = list_projects()
+        catalog_match = next((p for p in all_projs if p["name"].lower() == raw_name.lower()), None)
+        app_name = catalog_match["name"] if catalog_match else raw_name
+        slug = sanitize_project_name(app_name)
         yield f"🎯 [Project Target] Working on project: '{app_name}'\n"
     else:
         existing_projects = [
@@ -142,6 +146,7 @@ async def generate_code_stream(
         detected = detect_project_from_prompt(prompt, existing_projects)
         if detected:
             app_name = detected
+            slug = sanitize_project_name(app_name)
             yield f"🎯 [Project Target] Detected project from prompt: '{app_name}'\n"
         elif is_info and existing_projects:
             # Default to the most recently modified project for informational inspection
@@ -150,12 +155,14 @@ async def generate_code_stream(
                 reverse=True,
             )
             app_name = existing_projects[0]
+            slug = sanitize_project_name(app_name)
             yield f"🎯 [Project Target] Inspecting active project: '{app_name}'\n"
         else:
             app_name = derive_project_slug(prompt)
+            slug = sanitize_project_name(app_name)
             yield f"🎯 [Project Target] Derived project name: '{app_name}'\n"
 
-    project_dir = os.path.join(BASE_WORKSPACE, app_name)
+    project_dir = os.path.join(BASE_WORKSPACE, slug)
     os.makedirs(project_dir, exist_ok=True)
 
     # Sync project codebase from GitHub into workspace/<app_name>
@@ -210,29 +217,38 @@ async def generate_code_stream(
     generated_chars = 0
 
     agent_prompt = (
-        f"You are Antigravity CLI on cloud. Act exactly as Antigravity CLI does. "
-        f"When asked to build an application, write the code, push it to my GitHub repository with the name of the project ('{app_name}') and, "
-        f"if asked to deploy, add GitHub workflow to deploy. You can use ai-learning Google Cloud project and Vercel noam-projects2.\n\n"
+        f"You are Antigravity CLI on Cloud building the project '{app_name}'. "
+        f"Write complete, production-ready application code, automated tests, and GitHub deployment workflows directly into your workspace. "
+        "The backend platform will automatically commit and publish your generated files to GitHub when you finish.\n\n"
         f"User Instruction:\n{prompt}"
     ) if not is_info else prompt
 
-    async with Agent(config) as agent:
-        response = await agent.chat(agent_prompt)
+    try:
+        async with Agent(config) as agent:
+            response = await agent.chat(agent_prompt)
 
-        # Stream real-time chunks (ToolCalls, Thoughts, Text)
-        async for chunk in response.chunks:
-            formatted = format_stream_chunk(chunk)
-            if formatted:
-                yield formatted
-            if hasattr(chunk, "text") and chunk.text:
-                generated_chars += len(chunk.text)
+            # Stream real-time chunks (ToolCalls, Thoughts, Text)
+            async for chunk in response.chunks:
+                formatted = format_stream_chunk(chunk)
+                if formatted:
+                    yield formatted
+                if hasattr(chunk, "text") and chunk.text:
+                    generated_chars += len(chunk.text)
 
-        # Extract token usage metadata from response
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            meta = response.usage_metadata
-            prompt_tokens = getattr(meta, "prompt_token_count", 0) or 0
-            completion_tokens = getattr(meta, "candidates_token_count", 0) or 0
-            total_tokens = getattr(meta, "total_token_count", 0) or (prompt_tokens + completion_tokens)
+            # Extract token usage metadata from response
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                meta = response.usage_metadata
+                prompt_tokens = getattr(meta, "prompt_token_count", 0) or 0
+                completion_tokens = getattr(meta, "candidates_token_count", 0) or 0
+                total_tokens = getattr(meta, "total_token_count", 0) or (prompt_tokens + completion_tokens)
+    except Exception as agent_err:
+        yield f"\n⚠️ [Agent Notice] Code generation step notice: {agent_err}\n"
+
+    # Clean up any virtual environments or cache folders if created in workspace
+    for cleanup_dir in [".venv", "venv", "__pycache__", ".pytest_cache"]:
+        target_cleanup = os.path.join(project_dir, cleanup_dir)
+        if os.path.isdir(target_cleanup):
+            shutil.rmtree(target_cleanup, ignore_errors=True)
 
     # Clean up any files inadvertently created during info retrieval
     if is_info and os.path.isdir(project_dir):

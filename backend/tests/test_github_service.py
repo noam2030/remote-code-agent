@@ -118,5 +118,45 @@ class TestGithubService(unittest.TestCase):
         self.assertEqual(sanitize_git_output(""), "")
 
 
+    @patch("subprocess.run")
+    def test_push_to_dedicated_repo_creates_gitignore_and_ignores_venv(self, mock_run):
+        from remote_code_agent.github_service import push_to_dedicated_project_repo
+
+        copied_items = []
+        def mock_subprocess(cmd, **kwargs):
+            m = MagicMock()
+            m.returncode = 0
+            if "api" in cmd and "user" in cmd:
+                m.stdout = "testuser\n"
+            elif "status" in cmd and "--porcelain" in cmd:
+                m.stdout = "M app.py\n"
+            else:
+                m.stdout = ""
+                m.stderr = ""
+            return m
+
+        mock_run.side_effect = mock_subprocess
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create files including a .venv dir and code file
+            with open(os.path.join(tmp_dir, "app.py"), "w") as f:
+                f.write("print('hello')")
+            venv_dir = os.path.join(tmp_dir, ".venv")
+            os.makedirs(venv_dir)
+            with open(os.path.join(venv_dir, "env_lib.txt"), "w") as f:
+                f.write("virtualenv")
+
+            env = {"GH_TOKEN": "gho_test"}
+            success, url = push_to_dedicated_project_repo(tmp_dir, "sample-project", env=env)
+            self.assertTrue(success)
+            self.assertEqual(url, "https://github.com/testuser/sample-project")
+            # Verify .gitignore was created
+            self.assertTrue(os.path.exists(os.path.join(tmp_dir, ".gitignore")))
+            with open(os.path.join(tmp_dir, ".gitignore"), "r") as gf:
+                content = gf.read()
+                self.assertIn(".venv/", content)
+
+
 if __name__ == "__main__":
     unittest.main()
+

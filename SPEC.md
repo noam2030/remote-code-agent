@@ -76,11 +76,11 @@ The system consists of two primary tiers:
 The backend is structured under `backend/src/remote_code_agent`:
 - `core/config.py`: Environment variable loading, fallback discovery, GCP project ID (`ai-learning-499409`), and Vercel scope settings (`noam-projects2`).
 - `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, and file inspection endpoints.
-- `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity` configured as Antigravity CLI on Cloud. Ensures target repository is cloned into `workspace/<project_name>` (and pulled up to date), executes agent in workspace, streams tool calls and logs, and pushes resulting commits directly to the dedicated GitHub repository.
-- `services/intent_service.py`: Classifies user input into code modification tasks or informational queries.
-- `services/project_service.py`: Discovers all user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, syncs dedicated repositories on demand, performs case-insensitive project lookup while preserving canonical repository casing (e.g., `OpenTrain`, `QR-X-Ray`), and calculates stats.
-- `services/prompt_service.py`: Parsing, updating, and synthesizing project prompt history in `prompt.txt`.
-- `services/github_service.py`: Dedicated project repository creation (`<owner>/<project_name>`), repository discovery, remote git publishing directly to `main`, and authenticated remote URL generation.
+- `services/code_creation.py`: Core agent execution loop utilizing `google.antigravity`. Ensures target workspace directory exists, and directs the agent to focus strictly on generating complete application code, tests, and deployment workflows directly to files. The agent does not create virtual environments (`.venv`), install dependencies, or run git commands. Once code generation finishes, the backend service automatically commits and pushes all created files to GitHub.
+- `services/intent_service.py`: Classifies user input into code creation/modification tasks or informational queries.
+- `services/project_service.py`: Discovers user GitHub repositories via `gh repo list` and REST API, merges with local workspace projects, preserves the user's project name and casing, and calculates repository statistics.
+- `services/prompt_service.py`: Parsing, updating, and synthesizing project prompt history in `prompt.txt` with fast fallback.
+- `services/github_service.py`: Automates dedicated GitHub repository creation (`<owner>/<project_name>`), initializes git, writes `.gitignore`, commits generated files, and pushes to `main`. Excludes temporary or cache files, and ensures clean git commits without errors.
 - `server.py`: FastAPI application factory with CORS middleware and error handling.
 
 ## 7. Frontend
@@ -175,6 +175,7 @@ The application relies on the following environment variables:
 - **Frontend Target Platform**: Vercel (`https://remote-code-agent-ui.vercel.app`), configured with `VITE_API_URL=https://remote-code-agent-289332143182.us-central1.run.app`.
 - **Container Build**: Docker build from root `Dockerfile` using Python 3.11-slim, installing Git, GitHub CLI, and dependencies.
 - **Port**: Container listens on port `8080`.
+- **Request Timeout**: Configured with `--timeout=3600` (up to 60 minutes) to support multi-step agent code generation and build processes without premature HTTP connection drops.
 - **Access**: Unauthenticated invocations enabled (`--allow-unauthenticated`).
 - **CI/CD Architecture**:
   - **Pull Request Verification (`.github/workflows/pr-verify.yml`)**:
