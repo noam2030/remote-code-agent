@@ -101,6 +101,7 @@ export function App() {
     const newProj: Project = {
       name: trimmed,
       cloud_run_url: null,
+      vercel_url: null,
       github_url: `https://github.com/noam2030/${trimmed}`,
       has_remote: false,
       is_local: false,

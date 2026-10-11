@@ -43,6 +43,10 @@
 43. when i refreshed the page and asked to add ui to the hello-1 created project, i got this error after push to github: Invalid workflow file: .github/workflows/deploy.yml#L1 (Line: 36, Col: 9): Unrecognized named-value: 'secrets'. Located at position 67 within expression: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.GCP_SA_KEY != ''
 44. confirm
 45. merge
+46. when a project deploy to vercel - it should be to a project name as the project name plus -ui for example hello-ui, the backend deployment should be hello-api
+47. confirm
+48. confirm
+49. merge
 
 
 

@@ -1124,8 +1124,11 @@ def get_web_ui_html() -> str:
           </div>
         </div>
         <div class="banner-actions">
-          <a id="bannerLiveLink" href="#" target="_blank" class="action-btn action-btn-primary" style="display: none;">
-            🚀 Open Live Cloud Run App
+          <a id="bannerVercelLink" href="#" target="_blank" class="action-btn action-btn-primary" style="display: none;">
+            🌐 Open Live UI
+          </a>
+          <a id="bannerLiveLink" href="#" target="_blank" class="action-btn action-btn-secondary" style="display: none;">
+            🚀 Open API (Cloud Run)
           </a>
           <a id="bannerGithubLink" href="#" target="_blank" class="action-btn action-btn-secondary" style="display: none;">
             🐙 View on GitHub
@@ -1292,6 +1295,7 @@ def get_web_ui_html() -> str:
     const searchInput = document.getElementById('searchInput');
 
     const bannerProjectName = document.getElementById('bannerProjectName');
+    const bannerVercelLink = document.getElementById('bannerVercelLink');
     const bannerLiveLink = document.getElementById('bannerLiveLink');
     const bannerGithubLink = document.getElementById('bannerGithubLink');
     const bannerFileCount = document.getElementById('bannerFileCount');
@@ -1398,9 +1402,14 @@ def get_web_ui_html() -> str:
               </div>
             </div>
             <div class="project-links">
+              ${p.vercel_url ? `
+                <a href="${p.vercel_url}" target="_blank" class="project-tag tag-live" onclick="event.stopPropagation()">
+                  🌐 UI
+                </a>
+              ` : ''}
               ${p.cloud_run_url ? `
                 <a href="${p.cloud_run_url}" target="_blank" class="project-tag tag-live" onclick="event.stopPropagation()">
-                  🚀 Live App
+                  🚀 API
                 </a>
               ` : ''}
               ${p.github_url ? `
@@ -1449,8 +1458,16 @@ def get_web_ui_html() -> str:
         bannerFirestoreVal.textContent = p.name;
       }
 
+      if (p.vercel_url) {
+        bannerVercelLink.href = p.vercel_url;
+        bannerVercelLink.style.display = 'inline-flex';
+      } else {
+        bannerVercelLink.style.display = 'none';
+      }
+
       if (p.cloud_run_url) {
         bannerLiveLink.href = p.cloud_run_url;
+        bannerLiveLink.className = p.vercel_url ? 'action-btn action-btn-secondary' : 'action-btn action-btn-primary';
         bannerLiveLink.style.display = 'inline-flex';
       } else {
         bannerLiveLink.style.display = 'none';
@@ -1610,7 +1627,7 @@ def get_web_ui_html() -> str:
     function createNewProject() {
       const rawName = newProjectInput.value.trim();
       if (!rawName) return;
-      const cleanName = rawName.toLowerCase().replace(/[\s_]+/g, '-').replace(/[^a-z0-9\-]/g, '').replace(/\-+/g, '-').replace(/^\-|\-$/g, '') || 'new-app';
+      const cleanName = rawName.toLowerCase().replace(/[\\s_]+/g, '-').replace(/[^a-z0-9\\-]/g, '').replace(/\\-+/g, '-').replace(/^\\-|\\-$/g, '') || 'new-app';
 
       const existing = projects.find(p => p.name === cleanName);
       if (existing) {
@@ -1624,6 +1641,7 @@ def get_web_ui_html() -> str:
         name: cleanName,
         github_url: `https://github.com/noam2030/${cleanName}`,
         cloud_run_url: null,
+        vercel_url: null,
         files: [],
         files_count: 0,
         is_local: true,
@@ -1745,6 +1763,7 @@ def get_web_ui_html() -> str:
           bannerProjectName.textContent = 'No projects';
           noticeTargetName.textContent = 'create or select a project';
           footerTargetName.textContent = 'workspace';
+          bannerVercelLink.style.display = 'none';
           bannerLiveLink.style.display = 'none';
           bannerGithubLink.style.display = 'none';
           btnDeleteProject.style.display = 'none';

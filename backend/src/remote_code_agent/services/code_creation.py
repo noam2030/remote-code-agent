@@ -61,10 +61,10 @@ def get_agent_config(project_dir: str, app_name: str | None = None) -> google.an
             "- Do NOT run git or gh commands — git initialization, repository creation, and publishing to GitHub are handled automatically by the backend platform.\n"
             "- Ensure applications provide an interactive web interface or HTTP API (e.g. FastAPI, Flask, Streamlit, Express, React, or HTML/JS) "
             "or a Dockerfile listening on host 0.0.0.0 and port defined by $PORT (default 8080).\n\n"
-            "DEPLOYMENT WORKFLOWS:\n"
+            "DEPLOYMENT WORKFLOWS & NAMING CONVENTIONS:\n"
             "- Only generate GitHub Actions workflows in `.github/workflows/` (e.g. `.github/workflows/deploy.yml`) when automated deployment or CI/CD is explicitly requested by the user. Do NOT generate `.github/workflows/` for basic scripts or applications unless requested.\n"
-            "  * For Google Cloud Platform: Deploy containerized applications to Google Cloud Run in Google Cloud project 'ai-learning-499409' (region: 'us-central1', unauthenticated access, using secrets.GCP_SA_KEY). Use standard job conditionals `if: github.event_name == 'push' && github.ref == 'refs/heads/main'` (never reference `secrets` in job-level `if:` expressions, as GitHub Actions disallows `secrets` in job conditionals).\n"
-            "  * For Vercel: Deploy web applications to Vercel team/scope 'noam-projects2' (e.g. using vercel-action or vercel CLI with secrets.VERCEL_TOKEN).\n\n"
+            f"  * Backend Deployment (Google Cloud Run): The Cloud Run service name MUST be named '{target_name}-api' (e.g. for project 'hello', the service is 'hello-api'; for '{target_name}', it is '{target_name}-api'). Deploy containerized applications to Google Cloud Run in Google Cloud project 'ai-learning-499409' (region: 'us-central1', unauthenticated access, using secrets.GCP_SA_KEY). Command: `gcloud run deploy {target_name}-api --source . --project ai-learning-499409 --region us-central1 --allow-unauthenticated ...`. Use standard job conditionals `if: github.event_name == 'push' && github.ref == 'refs/heads/main'` (never reference `secrets` in job-level `if:` expressions, as GitHub Actions disallows `secrets` in job conditionals).\n"
+            f"  * Frontend Deployment (Vercel): The Vercel project name MUST be named '{target_name}-ui' (e.g. for project 'hello', the Vercel project is 'hello-ui'; for '{target_name}', it is '{target_name}-ui'). Deploy web applications to Vercel team/scope 'noam-projects2' under project name '{target_name}-ui' (e.g. using vercel CLI `vercel deploy --prod --scope noam-projects2 --token ${{ secrets.VERCEL_TOKEN }} --yes` or vercel-action with secrets.VERCEL_TOKEN and vercel-project-name: '{target_name}-ui').\n\n"
             "PERSISTENCE & DATA STORAGE:\n"
             f"- Any persistent data for this app (such as database records, user input, state, items, notes, tasks) "
             f"MUST be stored in Google Cloud Firestore as a collection in Google Cloud (project 'ai-learning-499409'). "
@@ -218,7 +218,10 @@ async def generate_code_stream(
 
     agent_prompt = (
         f"You are Antigravity CLI on Cloud building the project '{app_name}'. "
-        f"Write complete, production-ready application code and automated tests (and deployment workflows if explicitly requested) directly into your workspace. "
+        f"Write complete, production-ready application code and automated tests (and deployment workflows if explicitly requested) directly into your workspace.\n"
+        f"Deployment Naming Conventions (if deployment requested):\n"
+        f"- Backend Cloud Run service name: '{app_name}-api'\n"
+        f"- Frontend Vercel project name: '{app_name}-ui'\n"
         "The backend platform will automatically commit and publish your generated files to GitHub when you finish.\n\n"
         f"User Instruction:\n{prompt}"
     ) if not is_info else prompt
