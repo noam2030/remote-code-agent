@@ -10,7 +10,9 @@ from google.antigravity.hooks import policy
 
 from remote_code_agent.github_service import (
     create_or_checkout_branch,
+    derive_feature_branch_name,
     derive_project_slug,
+    ensure_remote_repo_and_main,
     get_current_branch,
     get_latest_feature_branch,
     merge_pull_request,
@@ -209,20 +211,17 @@ async def generate_code_stream(
 
         # Retrieve the user instruction being confirmed
         last_feature_prompt = get_last_feature_prompt(project_dir) or prompt
-        feature_slug = derive_project_slug(last_feature_prompt)
-        branch_name = f"feature/{feature_slug}"
+        branch_name = derive_feature_branch_name(last_feature_prompt)
+
+        # Ensure remote repository exists and remote main is initialized BEFORE branching
+        try:
+            ensure_remote_repo_and_main(project_dir, app_name)
+        except Exception:
+            pass
 
         # Create or checkout feature branch
         create_or_checkout_branch(project_dir, branch_name)
         yield f"🌿 [Git Branch] Created and checked out dedicated branch: '{branch_name}'\n"
-
-        # Update master prompt specification in prompt.txt
-        yield "📋 [Specification] Consolidating master prompt specification in prompt.txt...\n"
-        try:
-            await update_project_master_prompt(project_dir, app_name, last_feature_prompt)
-            yield "✅ [Specification] Master prompt specification updated in prompt.txt\n\n"
-        except Exception as e:
-            yield f"⚠️ [Specification Notice] Could not update prompt.txt: {e}\n\n"
 
         yield f"📝 [Specification] Updating SPEC.md first and implementing code and tests on '{branch_name}'...\n\n"
         config = get_agent_config(project_dir, app_name=app_name)
@@ -243,8 +242,7 @@ async def generate_code_stream(
         yield "📋 [Planning Mode] Analyzing workspace and formulating implementation plan...\n"
         append_numbered_prompt(project_dir, prompt)
 
-        feature_slug = derive_project_slug(prompt)
-        branch_name = f"feature/{feature_slug}"
+        branch_name = derive_feature_branch_name(prompt)
         yield f"🌿 [Proposed Branch] Dedicated feature branch: '{branch_name}'\n"
 
         config = get_info_retrieval_agent_config(project_dir, app_name=app_name)
@@ -387,16 +385,11 @@ async def generate_code_stream(
                 f"👉 To merge into main, reply with 'merge' or click 'Merge Pull Request'.\n"
             )
         else:
-            # Fallback to direct push if PR creation failed due to remote repo limitations
-            yield f"\n⚠️ [GitHub PR Notice] {info}. Falling back to standard push...\n"
-            fallback_success, fallback_info = publish_project_to_github(project_dir, app_name, prompt=last_feature_prompt)
-            if fallback_success:
-                yield (
-                    f"\n🎉 [GitHub] Successfully pushed code to GitHub repository for '{app_name}'!\n"
-                    f"🔗 Repository: {fallback_info}\n"
-                )
-            else:
-                yield f"\n⚠️ [GitHub Notice] {fallback_info}\n"
+            yield (
+                f"\n⚠️ [GitHub PR Notice] Could not create Pull Request: {info}\n"
+                f"🌿 Feature branch '{branch_name}' remains safely intact on GitHub without modifying main.\n"
+                f"👉 You can review changes on branch '{branch_name}' or retry.\n"
+            )
 
 
 # Alias for flexibility

@@ -222,6 +222,35 @@ class TestGithubService(unittest.TestCase):
         self.assertIn("GCP_SA_KEY", secret_names)
         self.assertIn("VERCEL_TOKEN", secret_names)
 
+    def test_derive_feature_branch_name_deterministic(self):
+        from remote_code_agent.github_service import derive_feature_branch_name
+
+        b1 = derive_feature_branch_name("Build a weather dashboard with charts")
+        b2 = derive_feature_branch_name("Build a weather dashboard with charts")
+        self.assertEqual(b1, b2)
+        self.assertTrue(b1.startswith("feature/"))
+        self.assertIn("weather", b1)
+
+        b_named = derive_feature_branch_name("Create an app named photo_sharer")
+        self.assertEqual(b_named, "feature/photo-sharer")
+
+    @patch("subprocess.run")
+    def test_get_repo_default_branch(self, mock_run):
+        from remote_code_agent.github_service import get_repo_default_branch
+
+        m = MagicMock()
+        m.returncode = 0
+        m.stdout = "main\n"
+        mock_run.return_value = m
+
+        res = get_repo_default_branch("testuser/test-repo")
+        self.assertEqual(res, "main")
+
+        # When remote defaults to master
+        m.stdout = "master\n"
+        res2 = get_repo_default_branch("testuser/test-repo")
+        self.assertEqual(res2, "master")
+
 
 if __name__ == "__main__":
     unittest.main()
