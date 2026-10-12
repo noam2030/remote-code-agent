@@ -111,4 +111,6 @@ Error: Process completed with exit code 1.
 105. when i press confrim, it starts over. and there is an error later which the pull request cannot be made
 106. remove number 2.
 107. confirm
+108. merge
+
 
