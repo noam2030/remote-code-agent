@@ -125,3 +125,4 @@ Error: Process completed with exit code 1.
 119. rerty
 120. retry
 121. retry
+122. merge
