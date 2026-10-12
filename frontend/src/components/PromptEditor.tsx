@@ -9,6 +9,14 @@ interface PromptEditorProps {
 
 const CHIPS = [
   {
+    label: '✅ Confirm Plan',
+    prompt: 'confirm',
+  },
+  {
+    label: '🔀 Merge Pull Request',
+    prompt: 'merge',
+  },
+  {
     label: '🎨 Modernize UI',
     prompt: 'Build a responsive web user interface with a modern dark theme',
   },
@@ -67,8 +75,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
 
       <div className="generator-footer">
         <div className="target-reminder">
-          Changes will be committed directly to GitHub repository <strong>{targetName}</strong> on branch{' '}
-          <strong>main</strong>.
+          Pair-programming workflow for <strong>{targetName}</strong>: plans first, commits to dedicated feature branches, and opens Pull Requests for your review before merging to main.
         </div>
         <button
           type="button"
@@ -76,7 +83,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
           onClick={() => handleSubmit()}
           disabled={isGenerating || !prompt.trim()}
         >
-          <span>{isGenerating ? '⏳ Generating...' : '✨ Generate & Push to GitHub'}</span>
+          <span>{isGenerating ? '⏳ Processing...' : '✨ Send Instruction'}</span>
         </button>
       </div>
     </div>

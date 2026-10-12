@@ -86,6 +86,30 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
     <span className="terminal-badge badge-idle">IDLE</span>
   )
 
+  const renderFormattedLogs = (content: string) => {
+    if (!content) {
+      return 'Remote Code Agent ready. Select a project and enter your instructions above to start.'
+    }
+    const urlRegex = /(https?:\/\/[^\s]+)/g
+    const parts = content.split(urlRegex)
+    return parts.map((part, i) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#60a5fa', textDecoration: 'underline' }}
+          >
+            {part}
+          </a>
+        )
+      }
+      return part
+    })
+  }
+
   return (
     <div className="terminal-card">
       <div className="terminal-header">
@@ -139,7 +163,7 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
         ref={terminalRef}
         style={{ fontSize: `${fontSize}px`, lineHeight: 1.75 }}
       >
-        {logs ? logs : 'Remote Code Agent ready. Select a project and enter your instructions above to start.'}
+        {renderFormattedLogs(logs)}
       </div>
     </div>
   )

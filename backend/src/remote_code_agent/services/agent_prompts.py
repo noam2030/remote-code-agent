@@ -103,3 +103,15 @@ def get_user_chat_prompt(app_name: str, user_instruction: str) -> str:
     prompt = prompt.replace("{app_name}", app_name)
     prompt = prompt.replace("{user_instruction}", user_instruction)
     return prompt
+
+
+def get_planning_chat_prompt(app_name: str, user_instruction: str, branch_name: str) -> str:
+    """Constructs the planning chat prompt message dynamically from backend/docs/."""
+    raw_md = load_prompt_markdown()
+    section_template = _extract_section(raw_md, 5)
+
+    prompt = section_template.replace("{app_name}", app_name)
+    prompt = prompt.replace("{user_instruction}", user_instruction)
+    prompt = prompt.replace("{branch_name}", branch_name)
+    return prompt
+

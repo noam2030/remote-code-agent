@@ -97,6 +97,44 @@ MUTATION_CONJUNCTIONS = [
     r"\bthen\s+(?:fix|change|update|modify|refactor|create|add|implement|delete|remove|rewrite|make)\b",
 ]
 
+# Patterns representing user approval/confirmation of a proposed plan
+CONFIRMATION_PATTERNS = [
+    r"^(?:yes|yep|yeah|sure|confirm|confirmed|proceed|approved?|go\s+ahead|ok|okay|retry)(?:[,.!\s].*)?$",
+    r"^(?:please\s+)?(?:confirm|proceed|go\s+ahead|retry)(?:[,.!\s].*)?$",
+    r"^(?:i\s+)?(?:confirm|approve|agree)(?:[,.!\s].*)?$",
+    r"^(?:looks?\s+good|lgtm|sounds?\s+good)(?:[,.!\s].*)?$",
+    r"^confirm\s+plan(?:[,.!\s].*)?$",
+]
+
+# Patterns representing user approval to merge a pull request
+MERGE_PATTERNS = [
+    r"^(?:merge|squash\s+and\s+merge|merge\s+pr|merge\s+pull\s+request|merge\s+branch)(?:[,.!\s].*)?$",
+    r"^(?:please\s+)?merge(?:(?:\s+the)?\s+(?:pr|pull\s+request|branch))?(?:[,.!\s].*)?$",
+    r"^(?:approve\s+and\s+merge)(?:[,.!\s].*)?$",
+]
+
+
+def is_confirmation_request(prompt: str) -> bool:
+    """Determines whether a user prompt is confirming a proposed plan."""
+    if not prompt or not prompt.strip():
+        return False
+    clean = prompt.strip().lower().strip("\"'`# \t\n")
+    for pattern in CONFIRMATION_PATTERNS:
+        if re.match(pattern, clean):
+            return True
+    return False
+
+
+def is_merge_request(prompt: str) -> bool:
+    """Determines whether a user prompt is approving/requesting to merge a pull request."""
+    if not prompt or not prompt.strip():
+        return False
+    clean = prompt.strip().lower().strip("\"'`# \t\n")
+    for pattern in MERGE_PATTERNS:
+        if re.match(pattern, clean):
+            return True
+    return False
+
 
 def strip_polite_prefixes(text: str) -> str:
     """Strips conversational polite prefixes from the beginning of a prompt."""
@@ -121,6 +159,9 @@ def is_info_retrieval_request(prompt: str) -> bool:
     """
     if not prompt or not prompt.strip():
         return True
+
+    if is_confirmation_request(prompt) or is_merge_request(prompt):
+        return False
 
     raw = prompt.strip()
     clean = raw.lower().lstrip("\"'`# \t\n")

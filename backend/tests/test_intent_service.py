@@ -6,7 +6,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from remote_code_agent.services.intent_service import (
     detect_project_from_prompt,
+    is_confirmation_request,
     is_info_retrieval_request,
+    is_merge_request,
     strip_polite_prefixes,
 )
 
@@ -99,6 +101,47 @@ class TestIntentService(unittest.TestCase):
             detect_project_from_prompt("How does this app work?", projects),
         )
 
+    def test_confirmation_queries(self):
+        confirmations = [
+            "confirm",
+            "CONFIRM",
+            "confirmed",
+            "yes",
+            "proceed",
+            "approved",
+            "go ahead",
+            "ok",
+            "okay",
+            "confirm plan",
+            "yes, please proceed",
+            "please confirm",
+            "i confirm",
+            "lgtm",
+            "looks good",
+            "retry",
+        ]
+        for c in confirmations:
+            with self.subTest(query=c):
+                self.assertTrue(is_confirmation_request(c), f"Expected '{c}' to be confirmation")
+                self.assertFalse(is_info_retrieval_request(c), f"Confirmation '{c}' must not be info retrieval")
+
+    def test_merge_queries(self):
+        merges = [
+            "merge",
+            "MERGE",
+            "merge pr",
+            "merge pull request",
+            "squash and merge",
+            "please merge",
+            "approve and merge",
+            "merge the pr",
+        ]
+        for m in merges:
+            with self.subTest(query=m):
+                self.assertTrue(is_merge_request(m), f"Expected '{m}' to be merge request")
+                self.assertFalse(is_info_retrieval_request(m), f"Merge '{m}' must not be info retrieval")
+
 
 if __name__ == "__main__":
     unittest.main()
+

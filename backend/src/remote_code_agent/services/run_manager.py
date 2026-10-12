@@ -168,6 +168,11 @@ class RunManager:
                         break
                     yield chunk
                 except asyncio.TimeoutError:
+                    while not q.empty():
+                        chunk = q.get_nowait()
+                        if chunk is None:
+                            return
+                        yield chunk
                     if run.status != "running":
                         break
                     # Send periodic SSE keep-alive comment
