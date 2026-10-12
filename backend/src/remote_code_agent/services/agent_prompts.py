@@ -1,4 +1,4 @@
-"""Service responsible for loading agent prompts and skills dynamically from backend/docs/."""
+"""Service responsible for loading agent prompts and skills dynamically from services/docs/."""
 
 import os
 import re
@@ -13,12 +13,15 @@ def find_docs_dir() -> Path:
             return custom_path
 
     current_file = Path(__file__).resolve()
-    # In local workspace: current_file.parents[3] is backend/ -> backend/docs
-    # In container: current_file.parents[3] is /app -> /app/docs
+    # Co-located inside services/ package: current_file.parent / "docs"
+    # Fallback to backend root /docs or container paths if needed
     candidates = [
+        current_file.parent / "docs",
         current_file.parents[3] / "docs",
+        Path.cwd() / "backend" / "src" / "remote_code_agent" / "services" / "docs",
         Path.cwd() / "backend" / "docs",
         Path.cwd() / "docs",
+        Path("/app/src/remote_code_agent/services/docs"),
         Path("/app/docs"),
     ]
     for cand in candidates:
