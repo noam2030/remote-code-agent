@@ -44,10 +44,10 @@ load_env_file()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GH_TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
 AGENT_WORKSPACE = os.environ.get("AGENT_WORKSPACE", "workspace")
-DEFAULT_SKILLS_REPO_URL = (
-    "https://github.com/noam2030/build-with-agent/tree/main/.agents/skills"
+SKILLS_REPO_URL = os.environ.get(
+    "SKILLS_REPO_URL",
+    "https://github.com/noam2030/build-with-agent/tree/main/.agents/skills",
 )
-SKILLS_REPO_URL = os.environ.get("SKILLS_REPO_URL", DEFAULT_SKILLS_REPO_URL)
 GITHUB_OUTPUT_REPO = os.environ.get("GITHUB_OUTPUT_REPO", "")
 GCP_OUTPUT_PROJECT_ID = (
     os.environ.get("GCP_OUTPUT_PROJECT_ID")

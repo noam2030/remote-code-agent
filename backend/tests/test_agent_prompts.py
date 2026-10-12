@@ -36,12 +36,16 @@ class TestAgentPrompts(unittest.TestCase):
         self.assertTrue((docs_dir / "prompt.md").is_file(), "prompt.md should exist in docs dir")
 
     def test_skills_not_in_project_files(self):
-        """Verifies that skills are NOT stored as static files in the project workspace."""
+        """Verifies that skills are NOT stored as static files in the project workspace, and no fallback constants exist."""
         docs_dir = find_docs_dir()
         self.assertFalse(
             (docs_dir / "skills").exists(),
             "skills directory must not exist in project files (must be loaded dynamically)",
         )
+        import remote_code_agent.services.agent_prompts as ap
+        import remote_code_agent.core.config as cfg
+        self.assertFalse(hasattr(ap, "FALLBACK_SKILLS"), "FALLBACK_SKILLS must not exist")
+        self.assertFalse(hasattr(cfg, "DEFAULT_SKILLS_REPO_URL"), "DEFAULT_SKILLS_REPO_URL must not exist")
 
     def test_parse_github_tree_url(self):
         """Verifies parsing of the remote GitHub skills repository URL."""
@@ -114,13 +118,14 @@ class TestAgentPrompts(unittest.TestCase):
         self.assertIn("project-specification", loaded)
 
     @patch("remote_code_agent.services.agent_prompts.fetch_remote_skills")
-    def test_load_dynamic_skills_network_fallback(self, mock_fetch):
-        """Verifies fallback skills are used when remote network fetch fails."""
+    def test_load_dynamic_skills_network_error_handled(self, mock_fetch):
+        """Verifies network exceptions during remote fetch are handled and return empty dict without crashing."""
         mock_fetch.side_effect = Exception("Simulated network failure")
         clear_loaded_skills()
         skills = load_dynamic_skills(force_refresh=True)
-        self.assertIn("project-specification", skills)
-        self.assertIn("development-workflow", skills)
+        self.assertEqual(skills, {})
+        with self.assertRaises(FileNotFoundError):
+            load_skill("project-specification")
 
     def test_get_combined_skills(self):
         """Verifies get_combined_skills orders core skills first and formats output."""

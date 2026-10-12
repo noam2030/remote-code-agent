@@ -3,7 +3,6 @@
 from remote_code_agent.core.config import (
     AGENT_WORKSPACE,
     CORS_ORIGINS,
-    DEFAULT_SKILLS_REPO_URL,
     GEMINI_API_KEY,
     GH_TOKEN,
     GITHUB_OUTPUT_REPO,
@@ -20,6 +19,5 @@ __all__ = [
     "GITHUB_OUTPUT_REPO",
     "PORT",
     "CORS_ORIGINS",
-    "DEFAULT_SKILLS_REPO_URL",
     "SKILLS_REPO_URL",
 ]

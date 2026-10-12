@@ -8,118 +8,12 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from remote_code_agent.core.config import DEFAULT_SKILLS_REPO_URL, SKILLS_REPO_URL
+from remote_code_agent.core.config import SKILLS_REPO_URL
 
 logger = logging.getLogger(__name__)
 
 # Global in-memory cache for dynamically loaded skills
 _LOADED_SKILLS: dict[str, str] = {}
-
-FALLBACK_SKILLS: dict[str, str] = {
-    "project-specification": """---
-name: project-specification
-description: Maintain a single, authoritative SPEC.md that captures the complete, current state of a project containing all mandatory sections 1 to 12 (Overview, Requirements, User Experience, Architecture, Technology Stack, Backend, Frontend, Data Model, API, Configuration, Testing, Deployment) so another coding agent can recreate the project from scratch without the original conversation. Defines what a project specification is and how to write it. Use when the user asks to create, update, or review SPEC.md, or when bootstrapping a new project from an existing SPEC.md.
----
-
-
-### Required Content
-
-Every created or updated `SPEC.md` must strictly contain **all sections 1 to 12**. No section from 1 to 12 may be omitted:
-
-```markdown
-# Project Specification
-
-## 1. Overview
-What the application does and its main goal.
-
-## 2. Requirements
-Complete functional requirements.
-
-## 3. User Experience
-UI, workflows, user interactions, and behavior.
-
-## 4. Architecture
-System architecture and major components.
-
-## 5. Technology Stack
-Languages, frameworks, libraries, databases, infrastructure, and tools.
-
-## 6. Backend
-Backend structure, services, APIs, business logic, and integrations.
-
-## 7. Frontend
-Pages, components, state management, styling, and client-side behavior.
-
-## 8. Data Model
-Entities, schemas, relationships, indexes, and persistence.
-
-## 9. API
-Endpoints, request/response formats, authentication, and errors.
-
-## 10. Configuration
-Environment variables, configuration files, secrets, and external dependencies.
-
-## 11. Testing
-Required tests and testing strategy.
-
-## 12. Deployment
-Build, deployment, infrastructure, and runtime requirements.
-```
-""",
-    "development-workflow": """# development-workflow Skill
-
-### 1. Code Modification Workflow
-When the user explicitly requests code changes, new features, bug fixes, or requirement updates:
-
-1. **Maintain Prompt History (`prompt.txt`)**:
-   - For each project, maintain a `prompt.txt` file located in the project root directory.
-   - Each user prompt must be appended to this file, separated by a new line.
-   - For each prompt, prefix a sequential prompt number (e.g., `1. <user prompt>`, `2. <user prompt>`, etc., continuing the sequence if `prompt.txt` already exists).
-
-2. **Code as a Reflection of the Spec File (`SPEC.md`)**:
-   - The code must always be an exact reflection of the project specification file (`SPEC.md`).
-   - Every implementation, modification, or bug fix must strictly conform to the architecture, data models, APIs, and requirements defined in `SPEC.md`.
-   - Never write code or introduce architectural changes that deviate from or contradict `SPEC.md`.
-
-3. **Requirement Updates (Spec First, Then Code)**:
-   - Upon any new prompt that asks to update requirements, add new features, or alter system behavior:
-     - **Update the spec first**: First update `SPEC.md` to reflect the new requirements, architecture, data models, or APIs.
-     - **Then implement according to the spec**: Implement the code changes strictly according to the updated `SPEC.md`.
-     - Never write or modify code before the specification is updated to reflect the new requirements.
-
-4. **Pre-Implementation Confirmation Loop**:
-   - Before any code change or file modification (excluding the recording of user prompts to `prompt.txt`), the agent must explain in short what it is about to do, summarize the planned changes (including any updates to `SPEC.md` and the codebase), and ask the explicit question: `Confirm?`
-   - Pause/yield the turn (stop calling tools) and wait for the user's response.
-   - Run this alignment loop until the user explicitly confirms (e.g., replies "yes" or "confirm").
-   - If the user asks clarification questions or asks to implement the change differently:
-     - Answer the questions thoroughly.
-     - Adapt the plan according to the user's feedback.
-     - Summarize the updated plan and ask `Confirm?` again.
-     - Yield the turn and repeat until explicit confirmation is received.
-
-5. **Strict Adherence to the Agreed Implementation**:
-   - Once the user confirms, implement the changes strictly as agreed: update `SPEC.md` first, then implement the code according to the updated specification.
-   - If an obstacle, error, or limitation arises during implementation that prevents implementing the plan as agreed:
-     - Stop immediately and report the exact issue, explain why the agreed approach cannot proceed as planned, and suggest potential alternatives for the user to review.
-
-6. **Side Branches & Pull Requests**:
-   - Create a dedicated side branch for each feature, refactor, or bug fix.
-   - Commit and push changes to GitHub on the side branch and open a pull request.
-
-7. **Automated Testing**:
-   - Ensure automated tests run on pull requests (e.g., via a GitHub Actions CI workflow).
-   - Pull requests must only be allowed to merge if all automated tests pass.
-
-8. **Pull Request Review & Merge Approval**:
-   - Do NOT merge the pull request without explicit user approval.
-   - Present the pull request URL to the user.
-   - The user will review the pull request and give explicit confirmation before the pull request can be merged.
-
-9. **Continuous Deployment Setup**:
-   - For each project:
-     - Maintain a GitHub Actions workflow that automatically deploys to production on Google Cloud when code is merged into `main`.
-""",
-}
 
 
 def parse_github_tree_url(url: str) -> dict[str, str]:
@@ -164,9 +58,9 @@ def fetch_remote_skills(repo_url: str | None = None) -> dict[str, str]:
     """Fetches skills dynamically from the remote GitHub repository.
 
     Queries the GitHub Contents API to discover skill directories, and downloads
-    the corresponding SKILL.md files. Falls back to direct raw downloads if API is restricted.
+    the corresponding SKILL.md files. Falls back to direct raw downloads if API listing is restricted.
     """
-    target_url = repo_url or os.environ.get("SKILLS_REPO_URL") or SKILLS_REPO_URL or DEFAULT_SKILLS_REPO_URL
+    target_url = repo_url or os.environ.get("SKILLS_REPO_URL") or SKILLS_REPO_URL
     parsed = parse_github_tree_url(target_url)
     owner = parsed["owner"]
     repo = parsed["repo"]
@@ -211,7 +105,7 @@ def fetch_remote_skills(repo_url: str | None = None) -> dict[str, str]:
     except Exception as e:
         logger.debug(f"GitHub Contents API listing failed for {api_url}: {e}")
 
-    # 2. Fallback direct raw fetch for standard known skills if API listing was unavailable or rate-limited
+    # 2. Direct raw fetch for standard skills if API listing was unavailable or rate-limited
     if not discovered_skills:
         for default_skill in ["development-workflow", "project-specification"]:
             raw_url = (
@@ -229,11 +123,7 @@ def load_dynamic_skills(
     repo_url: str | None = None,
     force_refresh: bool = False,
 ) -> dict[str, str]:
-    """Loads skills dynamically from the remote GitHub repository into the in-memory cache.
-
-    If network is unavailable or remote query returns empty, gracefully applies
-    the offline fallback skills cache to guarantee continuous operation.
-    """
+    """Loads skills dynamically from the remote GitHub repository into the in-memory cache."""
     global _LOADED_SKILLS
     if _LOADED_SKILLS and not force_refresh:
         return dict(_LOADED_SKILLS)
@@ -243,10 +133,6 @@ def load_dynamic_skills(
     except Exception as e:
         logger.warning(f"Error fetching remote skills from {repo_url}: {e}")
         remote_skills = {}
-
-    if not remote_skills:
-        # Fall back to built-in cache
-        remote_skills = dict(FALLBACK_SKILLS)
 
     _LOADED_SKILLS = remote_skills
     return dict(_LOADED_SKILLS)
