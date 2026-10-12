@@ -82,3 +82,6 @@ Error: Process completed with exit code 1.
 76. the ui is stack on mobile. especially when i have active session on mac brwser.
 77. confirm
 78. merge
+79. still cant scroll projects to the end. the ui stack!!!!!!!!!!!!!!!!!
+80. confirm
+81. merge
