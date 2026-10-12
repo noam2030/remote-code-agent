@@ -119,3 +119,4 @@ Error: Process completed with exit code 1.
 113. confirm
 114. remove DEFAULT_SKILLS_REPO_URL, FALLBACK_SKILLS
 115. confirm
+116. merge
