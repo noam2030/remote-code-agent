@@ -334,16 +334,59 @@ export function App() {
     setFilesDrawerOpen(true)
   }
 
+function isContinuationPrompt(prompt: string): boolean {
+  if (!prompt) return false
+  const clean = prompt.trim().toLowerCase().replace(/^["'`#]+|["'`#]+$/g, '')
+  const continuationWords = [
+    'confirm',
+    'confrim',
+    'confirmed',
+    'confirm plan',
+    'yes',
+    'proceed',
+    'approve',
+    'approved',
+    'go ahead',
+    'lgtm',
+    'looks good',
+    'ok',
+    'okay',
+    'retry',
+    'merge',
+    'merge pr',
+    'merge pull request',
+    'squash and merge',
+    'approve and merge',
+  ]
+  return continuationWords.some(
+    (word) => clean === word || clean.startsWith(word + ' ') || clean.startsWith(word + '.')
+  )
+}
+
   const handleGenerate = async (prompt: string, targetProject?: string) => {
     setMobileTab('console')
     setIsGenerating(true)
-    setStreamLogs('')
-    showToast('Starting code generation...')
+
+    const isContinuation = isContinuationPrompt(prompt)
+    const currentOffset = isContinuation ? streamLogs.length : 0
+
+    if (!isContinuation) {
+      setStreamLogs('')
+      showToast('Starting code generation...')
+    } else {
+      showToast('Continuing execution...')
+    }
 
     try {
-      await generateCodeStream(prompt, targetProject, (chunk) => {
-        setStreamLogs((prev) => prev + chunk)
-      })
+      await generateCodeStream(
+        prompt,
+        targetProject,
+        (chunk) => {
+          setStreamLogs((prev) => prev + chunk)
+        },
+        undefined,
+        currentOffset
+      )
       showToast('Code generation finished!')
       await fetchProjects()
     } catch (err: any) {

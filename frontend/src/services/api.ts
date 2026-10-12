@@ -97,13 +97,18 @@ export async function generateCodeStream(
   prompt: string,
   projectName: string | undefined,
   onChunk: (chunk: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  offset?: number
 ): Promise<void> {
-  const url = resolveUrl(
-    `/api/generate?prompt=${encodeURIComponent(prompt)}${
-      projectName ? `&project_name=${encodeURIComponent(projectName)}` : ''
-    }`
-  )
+  const query = new URLSearchParams()
+  query.set('prompt', prompt)
+  if (projectName) {
+    query.set('project_name', projectName)
+  }
+  if (offset !== undefined && offset > 0) {
+    query.set('offset', offset.toString())
+  }
+  const url = resolveUrl(`/api/generate?${query.toString()}`)
 
   const response = await fetch(url, {
     signal,

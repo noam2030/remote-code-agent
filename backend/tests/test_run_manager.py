@@ -181,6 +181,101 @@ class TestRunManager(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Execution error: Build error simulated", full_output)
         self.assertEqual(run.status, "error")
 
+    async def test_continuation_run_inherits_prior_logs_on_confirm(self):
+        async def plan_gen(prompt, project_name=None):
+            yield "📋 Planning feature\nConfirm?\n"
+
+        async def exec_gen(prompt, project_name=None):
+            yield "🚀 Executing feature implementation\nPR Created\n"
+
+        # Turn 1: Planning
+        run1 = self.manager.start_run(
+            prompt="Build weather app",
+            project_name="weather-app",
+            generator_fn=plan_gen,
+        )
+        await run1.task
+
+        plan_logs = "".join(run1.logs)
+        self.assertEqual(plan_logs, "📋 Planning feature\nConfirm?\n")
+
+        # Turn 2: User confirms
+        run2 = self.manager.start_run(
+            prompt="confirm",
+            project_name="weather-app",
+            generator_fn=exec_gen,
+        )
+        await run2.task
+
+        combined_logs = "".join(run2.logs)
+        self.assertIn("📋 Planning feature\nConfirm?\n", combined_logs)
+        self.assertIn("💬 [User] confirm", combined_logs)
+        self.assertIn("🚀 Executing feature implementation", combined_logs)
+
+        # Streaming with offset matching turn 1 length streams only turn 2 output
+        replayed = []
+        async for chunk in self.manager.stream_run(run2.run_id, offset=len(plan_logs)):
+            replayed.append(chunk)
+
+        turn2_stream = "".join(replayed)
+        self.assertNotIn("📋 Planning feature", turn2_stream)
+        self.assertIn("💬 [User] confirm", turn2_stream)
+        self.assertIn("🚀 Executing feature implementation", turn2_stream)
+
+    async def test_continuation_run_inherits_prior_logs_on_merge(self):
+        async def exec_gen(prompt, project_name=None):
+            yield "Pull Request created: https://github.com/test/pull/1\n"
+
+        async def merge_gen(prompt, project_name=None):
+            yield "🎉 Pull Request Merged!\n"
+
+        # Turn 1: Execution
+        run1 = self.manager.start_run(
+            prompt="confirm",
+            project_name="weather-app",
+            generator_fn=exec_gen,
+        )
+        await run1.task
+
+        # Turn 2: Merge
+        run2 = self.manager.start_run(
+            prompt="merge",
+            project_name="weather-app",
+            generator_fn=merge_gen,
+        )
+        await run2.task
+
+        combined_logs = "".join(run2.logs)
+        self.assertIn("Pull Request created", combined_logs)
+        self.assertIn("💬 [User] merge", combined_logs)
+        self.assertIn("🎉 Pull Request Merged!", combined_logs)
+
+    async def test_new_feature_does_not_inherit_prior_logs(self):
+        async def gen1(prompt, project_name=None):
+            yield "Weather app plan\n"
+
+        async def gen2(prompt, project_name=None):
+            yield "Todo app plan\n"
+
+        run1 = self.manager.start_run(
+            prompt="Build weather app",
+            project_name="weather-app",
+            generator_fn=gen1,
+        )
+        await run1.task
+
+        # New feature prompt should start fresh without inheriting
+        run2 = self.manager.start_run(
+            prompt="Build todo app",
+            project_name="todo-app",
+            generator_fn=gen2,
+        )
+        await run2.task
+
+        combined_logs = "".join(run2.logs)
+        self.assertNotIn("Weather app plan", combined_logs)
+        self.assertIn("Todo app plan", combined_logs)
+
 
 class TestActiveRunApiEndpoints(unittest.TestCase):
     def setUp(self):
