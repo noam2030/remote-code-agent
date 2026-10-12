@@ -95,6 +95,19 @@ async def api_health():
     }
 
 
+@app.get("/api/skills")
+async def api_get_skills():
+    """Retrieve all dynamically loaded skills, their contents, and remote source metadata."""
+    skills = get_loaded_skills()
+    return {
+        "status": "success",
+        "skills_source": SKILLS_REPO_URL,
+        "skills_count": len(skills),
+        "skill_names": list(skills.keys()),
+        "skills": skills,
+    }
+
+
 @app.get("/api/projects")
 async def api_list_projects():
     """Lists all available projects from GitHub and local workspace."""

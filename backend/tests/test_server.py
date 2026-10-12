@@ -43,6 +43,23 @@ class TestServer(unittest.TestCase):
         self.assertIn("loaded_skills", data)
         self.assertIn("skills_source", data)
 
+    @patch("remote_code_agent.server.get_loaded_skills")
+    def test_skills_endpoint(self, mock_get_skills):
+        mock_get_skills.return_value = {
+            "development-workflow": "# Workflow guidelines",
+            "project-specification": "# Spec guidelines",
+        }
+        response = self.client.get("/api/skills")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(data["skills_count"], 2)
+        self.assertIn("development-workflow", data["skills"])
+        self.assertIn("project-specification", data["skills"])
+        self.assertEqual(data["skills"]["development-workflow"], "# Workflow guidelines")
+        self.assertIn("skills_source", data)
+        self.assertEqual(data["skill_names"], ["development-workflow", "project-specification"])
+
     def test_main_exports_server_app(self):
         self.assertIs(main.app, app)
         self.assertIs(pkg_main.app, app)
