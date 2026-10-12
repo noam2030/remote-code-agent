@@ -107,4 +107,5 @@ Error: Process completed with exit code 1.
 101. i would like remote-code-agent to behave like a true pair-programming agent that uses branches, PRs, and approval. *exactly* as you, just running on google cloud
 102. confirm
 103. retry
+104. merge
 
