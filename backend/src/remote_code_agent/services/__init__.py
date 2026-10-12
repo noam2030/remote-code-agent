@@ -38,6 +38,14 @@ from remote_code_agent.services.prompt_service import (
     update_project_master_prompt,
     write_project_prompt,
 )
+from remote_code_agent.services.agent_prompts import (
+    find_docs_dir,
+    get_agent_system_prompt,
+    get_info_retrieval_system_prompt,
+    get_prompt_synthesis_system_prompt,
+    load_prompt_markdown,
+    load_skill,
+)
 
 __all__ = [
     "BASE_WORKSPACE",
@@ -68,4 +76,10 @@ __all__ = [
     "synthesize_prompts_fallback",
     "synthesize_master_prompt_with_ai",
     "update_project_master_prompt",
+    "get_agent_system_prompt",
+    "get_info_retrieval_system_prompt",
+    "get_prompt_synthesis_system_prompt",
+    "find_docs_dir",
+    "load_skill",
+    "load_prompt_markdown",
 ]

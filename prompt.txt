@@ -88,3 +88,7 @@ Error: Process completed with exit code 1.
 82. now the list is scrolled well on mobile, but the live console is not looks good. cant see the console. remove the section of the details of the project. make sure all info is in the project list card.
 83. confirm
 84. merge
+85. i want that the prompt and skills will be in a seperate dedcated file - so it will be easier to maintain and view
+86. put all of them in docs folder. do not do Mirrored in the repository root as AGENT_PROMPT.md for immediate visibility and packaged inside backend/src/remote_code_agent/agent_prompts.md for Cloud Run container execution.
+87. seperate prompt.md and skills files
+88. confirm

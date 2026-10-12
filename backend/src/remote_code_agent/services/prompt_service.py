@@ -124,25 +124,9 @@ async def synthesize_master_prompt_with_ai(
         import google.antigravity
         from google.antigravity import Agent, LocalAgentConfig
 
-        system_instruction = (
-            f"You are a Principal Software Architect and Master Prompt Engineer for the project '{app_name}'. "
-            "Your task is to take the existing project master prompt specification and a newly provided incremental user prompt, "
-            "and re-summarize/synthesize them into a SINGLE, unified master prompt specification. "
-            "Requirements:\n"
-            "1. The output must be written in such a way that if a developer or AI coding agent takes ONLY this synthesized prompt "
-            "and uses it on a brand new, empty project, they will produce the exact same final application with all features, architecture, "
-            "endpoints, styling, and refinements included.\n"
-            "2. Mandate the spec-first development workflow and maintaining a single authoritative SPEC.md containing all 12 mandatory sections "
-            "(1. Overview, 2. Requirements, 3. User Experience, 4. Architecture, 5. Technology Stack, 6. Backend, 7. Frontend, 8. Data Model, "
-            "9. API, 10. Configuration, 11. Testing, 12. Deployment) where code and automated tests strictly reflect SPEC.md.\n"
-            "3. Ensure any requirement for persistent application data is captured as requiring storage in Google Cloud Firestore "
-            f"(project 'ai-learning-499409') under a dedicated collection named '{app_name}'.\n"
-            f"4. If deployment is requested, capture requirements to add GitHub Actions deployment workflows for Google Cloud project 'ai-learning-499409' (service name '{app_name}-api'; MUST use Source type `gcloud run deploy {app_name}-api --source . ...`; do NOT use docker build/push or --image; never set PORT in --set-env-vars or --update-env-vars on Cloud Run, use --port 8080) or Vercel 'noam-projects2' (project name '{app_name}-ui').\n"
-            "5. Seamlessly merge all requirements. If the new prompt modifies, refines, or supersedes an earlier instruction, "
-            "update that requirement rather than repeating contradictory instructions.\n"
-            "6. Do NOT output conversational greetings, preamble, or wrapping markdown code fences (```). "
-            "Output only the clean, complete master prompt specification text."
-        )
+        from remote_code_agent.services.agent_prompts import get_prompt_synthesis_system_prompt
+
+        system_instruction = get_prompt_synthesis_system_prompt(app_name)
 
         user_content = (
             f"Project Name: {app_name}\n\n"
