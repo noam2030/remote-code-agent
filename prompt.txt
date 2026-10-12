@@ -114,6 +114,8 @@ Error: Process completed with exit code 1.
 108. merge
 109. when i press confirm - i want it to be added to the ongoing stream output. not to start a new one.
 110. confirm
+111. merge
+
 
 
 
