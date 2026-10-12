@@ -99,3 +99,4 @@ Error: Process completed with exit code 1.
 93. confirm
 94. move the docs into services directory
 95. confirm
+96. merge
