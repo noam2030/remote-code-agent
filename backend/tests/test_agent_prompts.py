@@ -55,10 +55,10 @@ class TestAgentPrompts(unittest.TestCase):
         self.assertIn("Spec First, Then Code", dev_skill)
         self.assertIn("prompt.txt", dev_skill)
 
-    def test_load_skill_fallback(self):
-        """Verifies graceful fallback behavior when skill file is not on disk."""
-        non_existent = load_skill("non-existent-skill")
-        self.assertEqual(non_existent, "")
+    def test_load_skill_missing(self):
+        """Verifies FileNotFoundError is raised when skill file is not on disk."""
+        with self.assertRaises(FileNotFoundError):
+            load_skill("non-existent-skill")
 
     def test_get_agent_system_prompt_interpolation(self):
         """Verifies get_agent_system_prompt formats target name and includes discipline rules."""

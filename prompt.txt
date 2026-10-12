@@ -92,3 +92,5 @@ Error: Process completed with exit code 1.
 86. put all of them in docs folder. do not do Mirrored in the repository root as AGENT_PROMPT.md for immediate visibility and packaged inside backend/src/remote_code_agent/agent_prompts.md for Cloud Run container execution.
 87. seperate prompt.md and skills files
 88. confirm
+89. update the pull request. why the agent_prompts.py contains all the prompt? it should be in the docs only
+90. confirm
