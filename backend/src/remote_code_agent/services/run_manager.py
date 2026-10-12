@@ -135,8 +135,9 @@ class RunManager:
         self,
         run_id: str | None = None,
         offset: int = 0,
+        heartbeat_interval: float = 5.0,
     ) -> AsyncGenerator[str, None]:
-        """Streams run output. Replays past logs from offset, then streams live chunks."""
+        """Streams run output. Replays past logs from offset, then streams live chunks with keep-alives."""
         run = self.current_run
         if not run or (run_id and run.run_id != run_id):
             return
@@ -156,14 +157,24 @@ class RunManager:
             snapshot_len = len(current_logs)
             if offset < snapshot_len:
                 yield current_logs[offset:]
+            elif offset >= snapshot_len:
+                # Immediate initial flush to unblock proxies and mobile browser buffers
+                yield ": connected\n\n"
 
             while True:
-                chunk = await q.get()
-                if chunk is None:
-                    break
-                yield chunk
+                try:
+                    chunk = await asyncio.wait_for(q.get(), timeout=heartbeat_interval)
+                    if chunk is None:
+                        break
+                    yield chunk
+                except asyncio.TimeoutError:
+                    if run.status != "running":
+                        break
+                    # Send periodic SSE keep-alive comment
+                    yield ": keepalive\n\n"
         finally:
             run.subscribers.discard(q)
+
 
 
 # Global singleton instance

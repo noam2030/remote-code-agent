@@ -24,6 +24,7 @@ export function App() {
   const [loadingProjects, setLoadingProjects] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [streamLogs, setStreamLogs] = useState('')
+  const [mobileTab, setMobileTab] = useState<'console' | 'projects'>('console')
 
   // Modals & Drawers state
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false)
@@ -91,6 +92,7 @@ export function App() {
 
         if (run && run.status === 'running') {
           setIsGenerating(true)
+          setMobileTab('console')
           if (run.logs) {
             setStreamLogs(run.logs)
           }
@@ -121,23 +123,23 @@ export function App() {
 
           showToast(`Connected to active run for project '${run.project_name || 'current'}'`)
 
-          try {
-            await streamActiveRun(run.logs ? run.logs.length : 0, (chunk) => {
+          // Stream actively in background without blocking init() completion
+          streamActiveRun(run.logs ? run.logs.length : 0, (chunk) => {
+            if (!isCancelled) {
+              setStreamLogs((prev) => prev + chunk)
+            }
+          })
+            .then(() => {
               if (!isCancelled) {
-                setStreamLogs((prev) => prev + chunk)
+                showToast('Code generation finished!')
+                fetchProjects()
+                setIsGenerating(false)
               }
             })
-            if (!isCancelled) {
-              showToast('Code generation finished!')
-              fetchProjects()
-            }
-          } catch (streamErr: any) {
-            console.error('Active stream error:', streamErr)
-          } finally {
-            if (!isCancelled) {
-              setIsGenerating(false)
-            }
-          }
+            .catch((streamErr: any) => {
+              console.error('Active stream error:', streamErr)
+            })
+
           return
         } else if (run && run.status === 'completed' && run.logs) {
           setStreamLogs(run.logs)
@@ -167,35 +169,75 @@ export function App() {
     }
   }, [])
 
+  // Resilient fallback polling while a run is in progress
+  useEffect(() => {
+    if (!isGenerating) return
+
+    const intervalId = setInterval(async () => {
+      try {
+        const run = await getActiveRun()
+        if (!run) return
+
+        if (run.status === 'completed' || run.status === 'error' || run.status === 'cancelled') {
+          if (run.logs) {
+            setStreamLogs((prev) => (run.logs!.length > prev.length ? run.logs! : prev))
+          }
+          setIsGenerating(false)
+          fetchProjects()
+          if (run.status === 'completed') {
+            showToast('Code generation finished!')
+          } else {
+            showToast('Code generation ended: ' + run.status)
+          }
+        } else if (run.status === 'running' && run.logs) {
+          setStreamLogs((prev) => (run.logs!.length > prev.length ? run.logs! : prev))
+        }
+      } catch {
+        // Silently tolerate network blips
+      }
+    }, 3000)
+
+    return () => clearInterval(intervalId)
+  }, [isGenerating])
+
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && !isGenerating) {
+      if (document.visibilityState === 'visible') {
         try {
           const run = await getActiveRun()
           if (run && run.status === 'running') {
-            setIsGenerating(true)
+            setMobileTab('console')
             if (run.logs) {
-              setStreamLogs(run.logs)
+              setStreamLogs((prev) => (run.logs!.length > prev.length ? run.logs! : prev))
             }
-            if (run.project_name) {
-              const found = projects.find(
-                (p) => p.name.toLowerCase() === run.project_name?.toLowerCase()
-              )
-              if (found) {
-                handleSelectProject(found)
+            if (!isGenerating) {
+              setIsGenerating(true)
+              if (run.project_name && !selectedProject) {
+                const found = projects.find(
+                  (p) => p.name.toLowerCase() === run.project_name?.toLowerCase()
+                )
+                if (found) {
+                  handleSelectProject(found)
+                }
               }
-            }
-            try {
-              await streamActiveRun(run.logs ? run.logs.length : 0, (chunk) => {
+              streamActiveRun(run.logs ? run.logs.length : 0, (chunk) => {
                 setStreamLogs((prev) => prev + chunk)
               })
-              showToast('Code generation finished!')
-              fetchProjects()
-            } catch (err: any) {
-              console.error('Stream error:', err)
-            } finally {
-              setIsGenerating(false)
+                .then(() => {
+                  showToast('Code generation finished!')
+                  fetchProjects()
+                  setIsGenerating(false)
+                })
+                .catch((err: any) => {
+                  console.error('Visibility change stream error:', err)
+                })
             }
+          } else if (run && run.status === 'completed' && isGenerating) {
+            setIsGenerating(false)
+            if (run.logs) {
+              setStreamLogs((prev) => (run.logs!.length > prev.length ? run.logs! : prev))
+            }
+            fetchProjects()
           }
         } catch {
           // ignore
@@ -207,10 +249,11 @@ export function App() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [isGenerating, projects])
+  }, [isGenerating, projects, selectedProject])
 
 
   const handleSelectProject = async (proj: Project | null) => {
+    setMobileTab('console')
     setSelectedProject(proj)
     if (proj && (proj.has_remote || proj.is_local || (proj.files_count ?? 0) > 0)) {
       try {
@@ -227,6 +270,7 @@ export function App() {
   const handleCreateProject = (name: string) => {
     const trimmed = name.trim()
     if (!trimmed) return
+    setMobileTab('console')
 
     // Check if project already exists (case-insensitive)
     const existing = projects.find((p) => p.name.toLowerCase() === trimmed.toLowerCase())
@@ -286,6 +330,7 @@ export function App() {
   }
 
   const handleGenerate = async (prompt: string, targetProject?: string) => {
+    setMobileTab('console')
     setIsGenerating(true)
     setStreamLogs('')
     showToast('Starting code generation...')
@@ -315,7 +360,25 @@ export function App() {
 
       <Header />
 
-      <main className="main-grid">
+      <nav className="mobile-view-tabs" aria-label="Mobile View Navigation">
+        <button
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'console' ? 'active' : ''}`}
+          onClick={() => setMobileTab('console')}
+        >
+          <span>⚡ Live Console</span>
+          {isGenerating && <span className="tab-live-badge">Running</span>}
+        </button>
+        <button
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'projects' ? 'active' : ''}`}
+          onClick={() => setMobileTab('projects')}
+        >
+          <span>📁 Projects ({projects.length})</span>
+        </button>
+      </nav>
+
+      <main className={`main-grid mobile-tab-${mobileTab}`}>
         <Sidebar
           projects={projects}
           selectedProject={selectedProject}
