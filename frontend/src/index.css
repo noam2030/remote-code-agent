@@ -239,7 +239,18 @@ main.main-grid {
   overflow: hidden;
 }
 
-@media (max-width: 900px) {
+/* Mobile View Tabs - hidden on desktop */
+.mobile-view-tabs {
+  display: none;
+}
+
+@media (max-width: 900px) and (min-width: 769px) {
+  main.main-grid {
+    grid-template-columns: 280px 1fr;
+  }
+}
+
+@media (max-width: 768px) {
   body,
   #root,
   .app-layout {
@@ -248,16 +259,58 @@ main.main-grid {
     overflow: visible;
   }
 
+  .mobile-view-tabs {
+    display: flex;
+    background-color: #0b0f19;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.4rem 0.75rem;
+    gap: 0.5rem;
+    position: sticky;
+    top: 56px;
+    z-index: 40;
+  }
+
+  .mobile-tab-btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .mobile-tab-btn.active {
+    color: #fff;
+    background: #1e293b;
+    border-color: #3b82f6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
+  .tab-live-badge {
+    background-color: #ef4444;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    animation: pulse 1.5s infinite;
+  }
+
   main.main-grid {
     grid-template-columns: 1fr;
     height: auto;
     max-height: none;
     overflow: visible;
-  }
-
-  .sidebar {
-    height: 380px;
-    max-height: 45vh;
   }
 
   .content-area {
@@ -268,19 +321,28 @@ main.main-grid {
     overflow: visible;
   }
 
-  .terminal-card {
-    min-height: 350px;
+  /* When mobile tab is Console, hide sidebar and show content-area */
+  .main-grid.mobile-tab-console .sidebar {
+    display: none !important;
   }
 
-  .terminal-output {
-    height: 320px;
+  .main-grid.mobile-tab-console .content-area {
+    display: flex !important;
+    width: 100%;
   }
-}
 
-@media (max-width: 768px) {
-  .sidebar {
-    height: 280px;
-    max-height: 35vh;
+  /* When mobile tab is Projects, hide content-area and show sidebar */
+  .main-grid.mobile-tab-projects .content-area {
+    display: none !important;
+  }
+
+  .main-grid.mobile-tab-projects .sidebar {
+    display: flex !important;
+    width: 100%;
+    height: auto;
+    min-height: calc(100vh - 105px);
+    max-height: none;
+    border-right: none;
   }
 
   .terminal-card {

@@ -71,13 +71,35 @@ class TestRunManager(unittest.IsolatedAsyncioTestCase):
         async def subscriber():
             out = []
             async for chunk in self.manager.stream_run(run.run_id):
-                out.append(chunk)
+                if not chunk.startswith(":"):
+                    out.append(chunk)
             return "".join(out)
 
         # Two concurrent listeners (e.g. desktop and mobile)
         res1, res2 = await asyncio.gather(subscriber(), subscriber())
         self.assertEqual(res1, "step_0;step_1;step_2;")
         self.assertEqual(res2, "step_0;step_1;step_2;")
+
+    async def test_stream_heartbeat_keepalive(self):
+        async def quiet_generator(prompt, project_name=None):
+            yield "Hello"
+            await asyncio.sleep(0.06)
+            yield "World"
+
+        run = self.manager.start_run(
+            prompt="heartbeat test",
+            project_name="hb-proj",
+            generator_fn=quiet_generator,
+        )
+
+        chunks = []
+        async for chunk in self.manager.stream_run(run.run_id, heartbeat_interval=0.02):
+            chunks.append(chunk)
+
+        self.assertIn(": keepalive\n\n", chunks)
+        clean = "".join([c for c in chunks if not c.startswith(":")])
+        self.assertEqual(clean, "HelloWorld")
+
 
     async def test_stream_replay_with_offset(self):
         async def fast_generator(prompt, project_name=None):

@@ -81,10 +81,23 @@ export async function getFileContent(
 }
 
 
+function filterStreamChunk(raw: string): string {
+  if (!raw) return ''
+  // If the chunk consists entirely of SSE comment lines (e.g. : keepalive\n\n or : connected\n\n), discard it
+  const lines = raw.split('\n')
+  const nonCommentLines = lines.filter((line) => {
+    const trimmed = line.trim()
+    return trimmed.length > 0 && !trimmed.startsWith(':')
+  })
+  if (nonCommentLines.length === 0) return ''
+  return lines.filter((line) => !line.trimStart().startsWith(':')).join('\n')
+}
+
 export async function generateCodeStream(
   prompt: string,
   projectName: string | undefined,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const url = resolveUrl(
     `/api/generate?prompt=${encodeURIComponent(prompt)}${
@@ -93,6 +106,7 @@ export async function generateCodeStream(
   )
 
   const response = await fetch(url, {
+    signal,
     headers: {
       Accept: 'text/plain; charset=utf-8',
     },
@@ -113,8 +127,9 @@ export async function generateCodeStream(
     const { done, value } = await reader.read()
     if (done) break
     const chunk = decoder.decode(value, { stream: true })
-    if (chunk) {
-      onChunk(chunk)
+    const filtered = filterStreamChunk(chunk)
+    if (filtered) {
+      onChunk(filtered)
     }
   }
 }
@@ -129,10 +144,12 @@ export async function getActiveRun(): Promise<ActiveRunResponse> {
 
 export async function streamActiveRun(
   offset: number = 0,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const url = resolveUrl(`/api/runs/active/stream?offset=${encodeURIComponent(offset)}`)
   const response = await fetch(url, {
+    signal,
     headers: {
       Accept: 'text/plain; charset=utf-8',
     },
@@ -153,9 +170,11 @@ export async function streamActiveRun(
     const { done, value } = await reader.read()
     if (done) break
     const chunk = decoder.decode(value, { stream: true })
-    if (chunk) {
-      onChunk(chunk)
+    const filtered = filterStreamChunk(chunk)
+    if (filtered) {
+      onChunk(filtered)
     }
   }
 }
+
 
