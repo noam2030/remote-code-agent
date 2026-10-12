@@ -75,7 +75,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         self.assertIn("## 1. Overview", config.system_instructions)
         self.assertIn("## 12. Deployment", config.system_instructions)
         self.assertIn("Spec First, Then Code", config.system_instructions)
-        self.assertIn("Code as an Exact Reflection of SPEC.md", config.system_instructions)
+        self.assertIn("Code as a Reflection of the Spec File", config.system_instructions)
 
     def test_agent_config_with_app_name(self):
         test_dir = os.path.join(BASE_WORKSPACE, "test-unit-custom")
@@ -178,7 +178,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             self.assertIsNotNone(captured_agent)
             chat_prompt = captured_agent.chat.call_args[0][0]
             self.assertIn("Spec First, Then Code", chat_prompt)
-            self.assertIn("ALL 12 MANDATORY SECTIONS", chat_prompt)
+            self.assertIn("all sections 1 to 12", chat_prompt)
             self.assertIn("Code as a Reflection of the Spec File", chat_prompt)
 
     async def test_generate_code_stream_merge_mode(self):

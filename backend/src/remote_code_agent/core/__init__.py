@@ -7,6 +7,7 @@ from remote_code_agent.core.config import (
     GH_TOKEN,
     GITHUB_OUTPUT_REPO,
     PORT,
+    SKILLS_REPO_URL,
     load_env_file,
 )
 
@@ -18,4 +19,5 @@ __all__ = [
     "GITHUB_OUTPUT_REPO",
     "PORT",
     "CORS_ORIGINS",
+    "SKILLS_REPO_URL",
 ]

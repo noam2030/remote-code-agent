@@ -39,13 +39,18 @@ from remote_code_agent.services.prompt_service import (
     write_project_prompt,
 )
 from remote_code_agent.services.agent_prompts import (
+    clear_loaded_skills,
     find_docs_dir,
     get_agent_system_prompt,
+    get_combined_skills,
     get_info_retrieval_system_prompt,
+    get_loaded_skills,
     get_prompt_synthesis_system_prompt,
     get_user_chat_prompt,
+    load_dynamic_skills,
     load_prompt_markdown,
     load_skill,
+    set_loaded_skills,
 )
 
 __all__ = [
@@ -84,4 +89,9 @@ __all__ = [
     "find_docs_dir",
     "load_skill",
     "load_prompt_markdown",
+    "load_dynamic_skills",
+    "get_loaded_skills",
+    "set_loaded_skills",
+    "clear_loaded_skills",
+    "get_combined_skills",
 ]

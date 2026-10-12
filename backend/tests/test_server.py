@@ -32,6 +32,16 @@ class TestServer(unittest.TestCase):
         self.assertIn("workspace", data)
         self.assertIn("docs", data)
         self.assertIn("frontend", data)
+        self.assertIn("loaded_skills", data)
+        self.assertIn("skills_source", data)
+
+    def test_health_endpoint(self):
+        response = self.client.get("/api/health")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "healthy")
+        self.assertIn("loaded_skills", data)
+        self.assertIn("skills_source", data)
 
     def test_main_exports_server_app(self):
         self.assertIs(main.app, app)

@@ -115,8 +115,8 @@ Error: Process completed with exit code 1.
 109. when i press confirm - i want it to be added to the ongoing stream output. not to start a new one.
 110. confirm
 111. merge
-
-
-
-
-
+112. i want that the agent will load the skills dynamicly, when the app loaded, from 'https://github.com/noam2030/build-with-agent/tree/main/.agents/skills' without having them in the project files
+113. confirm
+114. remove DEFAULT_SKILLS_REPO_URL, FALLBACK_SKILLS
+115. confirm
+116. merge

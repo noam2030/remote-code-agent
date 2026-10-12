@@ -1,3 +1,6 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -7,6 +10,11 @@ from remote_code_agent.core.config import (
     FRONTEND_URL,
     GCP_OUTPUT_PROJECT_ID,
     PORT,
+    SKILLS_REPO_URL,
+)
+from remote_code_agent.services.agent_prompts import (
+    get_loaded_skills,
+    load_dynamic_skills,
 )
 from remote_code_agent.services.code_creation import BASE_WORKSPACE, generate_code_stream
 from remote_code_agent.services.project_service import (
@@ -15,10 +23,27 @@ from remote_code_agent.services.project_service import (
     list_projects,
 )
 
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler: dynamically loads skills from remote repository upon app startup."""
+    try:
+        skills = load_dynamic_skills()
+        logger.info(
+            f"Successfully loaded {len(skills)} dynamic skills on startup: {list(skills.keys())}"
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load dynamic skills on startup: {e}")
+    yield
+
+
 app = FastAPI(
     title="Google Antigravity Agent Service (Backend API)",
     description="Autonomous code generation backend with Google Cloud Run & Vercel support",
     version="0.3.0",
+    lifespan=lifespan,
 )
 
 # Enable CORS for cross-origin frontend deployments (e.g. Vercel, localhost)
@@ -47,6 +72,8 @@ async def root():
         "output_mode": "dedicated_repositories",
         "output_branch": "main",
         "firestore_database": f"{GCP_OUTPUT_PROJECT_ID} / (default)",
+        "skills_source": SKILLS_REPO_URL,
+        "loaded_skills": list(get_loaded_skills().keys()),
     }
 
 
@@ -63,6 +90,8 @@ async def api_health():
         "status": "healthy",
         "service": "remote-code-agent-backend",
         "version": "0.3.0",
+        "skills_source": SKILLS_REPO_URL,
+        "loaded_skills": list(get_loaded_skills().keys()),
     }
 
 
