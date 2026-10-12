@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-cer
 # Install dependencies without pip cache to minimize container size
 RUN pip install --no-cache-dir fastapi uvicorn google-antigravity pydantic
 
-# Copy backend files
+# Copy backend files (including backend/docs/)
 COPY backend/ .
 
 # Install package
