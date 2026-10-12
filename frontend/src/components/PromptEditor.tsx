@@ -9,16 +9,8 @@ interface PromptEditorProps {
 
 const CHIPS = [
   {
-    label: '🏥 Add Health Check',
-    prompt: 'Add a health check endpoint and update OpenAPI documentation',
-  },
-  {
     label: '🎨 Modernize UI',
     prompt: 'Build a responsive web user interface with a modern dark theme',
-  },
-  {
-    label: '🧪 Add Unit Tests',
-    prompt: 'Create comprehensive automated unit tests in tests/ directory',
   },
   {
     label: '🚀 Deploy Workflows',
@@ -50,16 +42,6 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
 
   return (
     <div className="generator-card">
-      <div className="card-header-row">
-        <h3 className="card-title">⚡ Antigravity CLI on Cloud</h3>
-        <div className="correlation-notice">
-          <span>📌</span>
-          <span>
-            Target: <strong>{targetName}</strong>
-          </span>
-        </div>
-      </div>
-
       <div className="chips-row">
         {CHIPS.map((chip, idx) => (
           <button

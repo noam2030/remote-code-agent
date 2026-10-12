@@ -375,7 +375,7 @@ def list_remote_projects(
                 "vercel_url": None,
                 "has_remote": True,
                 "is_private": repo.get("isPrivate", False),
-                "updated_at": repo.get("updatedAt"),
+                "updated_at": repo.get("updatedAt") or repo.get("updated_at") or "",
             }
     except Exception:
         pass
@@ -442,6 +442,7 @@ def list_projects() -> list[dict[str, Any]]:
             "has_remote": True,
             "is_local": False,
             "is_private": data.get("is_private", False),
+            "updated_at": data.get("updated_at") or data.get("updatedAt") or "",
             "files": [],
             "files_count": 0,
             "files_detail": [],
@@ -468,8 +469,12 @@ def list_projects() -> list[dict[str, Any]]:
             if data.get("vercel_url") and not merged[matched_key].get("vercel_url"):
                 merged[matched_key]["vercel_url"] = data.get("vercel_url")
 
-    # Return list sorted alphabetically by name
-    return sorted(list(merged.values()), key=lambda p: p["name"])
+    # Return list in the same order as GitHub: most recently used/updated first
+    return sorted(
+        list(merged.values()),
+        key=lambda p: p.get("updated_at") or "",
+        reverse=True,
+    )
 
 
 

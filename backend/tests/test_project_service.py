@@ -158,6 +158,36 @@ class TestProjectService(unittest.TestCase):
 
     @patch("remote_code_agent.services.project_service.list_local_projects")
     @patch("remote_code_agent.services.project_service.list_remote_projects")
+    def test_list_projects_orders_by_most_recently_updated_matching_github(
+        self, mock_remote, mock_local
+    ):
+        mock_local.return_value = {}
+        mock_remote.return_value = {
+            "older-repo": {
+                "name": "older-repo",
+                "updated_at": "2026-08-01T10:00:00Z",
+                "github_url": "https://github.com/noam2030/older-repo",
+            },
+            "newest-repo": {
+                "name": "newest-repo",
+                "updated_at": "2026-10-12T09:00:00Z",
+                "github_url": "https://github.com/noam2030/newest-repo",
+            },
+            "middle-repo": {
+                "name": "middle-repo",
+                "updated_at": "2026-09-15T12:00:00Z",
+                "github_url": "https://github.com/noam2030/middle-repo",
+            },
+        }
+
+        projects = list_projects()
+        names = [p["name"] for p in projects]
+        # Must be ordered newest first, middle second, older last
+        self.assertEqual(names, ["newest-repo", "middle-repo", "older-repo"])
+        self.assertEqual(projects[0]["updated_at"], "2026-10-12T09:00:00Z")
+
+    @patch("remote_code_agent.services.project_service.list_local_projects")
+    @patch("remote_code_agent.services.project_service.list_remote_projects")
     def test_list_projects_strictly_reflects_github_and_excludes_non_github_local_dirs(
         self, mock_remote, mock_local
     ):
