@@ -370,3 +370,318 @@ def publish_project_to_github(
             pass
 
     return push_to_dedicated_project_repo(project_dir, app_name, env=env, target_repo=target_repo)
+
+
+def get_current_branch(project_dir: str, env: dict[str, str] | None = None) -> str:
+    """Gets the current git branch name of the project directory."""
+    if env is None:
+        env = get_github_env()
+    try:
+        res = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=project_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+    return "main"
+
+
+def get_latest_feature_branch(project_dir: str, env: dict[str, str] | None = None) -> str | None:
+    """Finds the latest or active feature branch for the project."""
+    curr = get_current_branch(project_dir, env=env)
+    if curr.startswith("feature/"):
+        return curr
+    if env is None:
+        env = get_github_env()
+    try:
+        res = subprocess.run(
+            ["git", "branch", "--list", "feature/*"],
+            cwd=project_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            branches = [b.strip().lstrip("* ") for b in res.stdout.strip().splitlines() if b.strip()]
+            if branches:
+                return branches[-1]
+    except Exception:
+        pass
+    return None
+
+
+def create_or_checkout_branch(
+    project_dir: str,
+    branch_name: str,
+    env: dict[str, str] | None = None,
+) -> tuple[bool, str]:
+    """Creates and checks out a new or existing git branch."""
+    if env is None:
+        env = get_github_env()
+    ensure_git_config(env)
+    try:
+        if not os.path.exists(os.path.join(project_dir, ".git")):
+            subprocess.run(["git", "init"], cwd=project_dir, env=env, check=True, capture_output=True)
+            subprocess.run(["git", "checkout", "-B", "main"], cwd=project_dir, env=env, check=True, capture_output=True)
+
+        res = subprocess.run(
+            ["git", "checkout", "-B", branch_name],
+            cwd=project_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if res.returncode == 0:
+            return True, f"Switched to branch '{branch_name}'"
+        return False, sanitize_git_output(res.stderr or res.stdout)
+    except Exception as e:
+        return False, str(e)
+
+
+def ensure_remote_repo_and_main(
+    project_dir: str,
+    app_name: str,
+    target_repo: str | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[bool, str, str]:
+    """Ensures GitHub repository exists and that remote main has at least an initial commit."""
+    if env is None:
+        env = get_github_env()
+    owner = get_github_owner(env)
+    project_repo = target_repo if target_repo else f"{owner}/{app_name}"
+
+    view_res = subprocess.run(["gh", "repo", "view", project_repo], env=env, capture_output=True, text=True)
+    if view_res.returncode != 0:
+        create_res = subprocess.run(
+            [
+                "gh",
+                "repo",
+                "create",
+                project_repo,
+                "--public",
+                "--description",
+                f"{app_name} built autonomously by Antigravity CLI on Cloud",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if create_res.returncode == 0:
+            time.sleep(2)
+
+    sync_project_repo_secrets(project_repo, env=env)
+    repo_url = get_authenticated_repo_url(project_repo, env=env)
+
+    if not os.path.exists(os.path.join(project_dir, ".git")):
+        subprocess.run(["git", "init"], cwd=project_dir, env=env, check=True, capture_output=True)
+
+    remotes_res = subprocess.run(["git", "remote"], cwd=project_dir, env=env, capture_output=True, text=True)
+    if "origin" not in remotes_res.stdout.split():
+        subprocess.run(["git", "remote", "add", "origin", repo_url], cwd=project_dir, env=env, check=True, capture_output=True)
+    else:
+        subprocess.run(["git", "remote", "set-url", "origin", repo_url], cwd=project_dir, env=env, check=False, capture_output=True)
+
+    ensure_git_config(env)
+
+    ls_res = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin", "main"],
+        cwd=project_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if not ls_res.stdout.strip():
+        gitignore_path = os.path.join(project_dir, ".gitignore")
+        if not os.path.exists(gitignore_path):
+            try:
+                with open(gitignore_path, "w", encoding="utf-8") as f:
+                    f.write("__pycache__/\n*.py[cod]\n.venv/\nvenv/\nnode_modules/\n.pytest_cache/\n.DS_Store\n")
+            except Exception:
+                pass
+        readme_path = os.path.join(project_dir, "README.md")
+        if not os.path.exists(readme_path):
+            try:
+                with open(readme_path, "w", encoding="utf-8") as f:
+                    f.write(f"# {app_name}\n\nAutonomous application built with Antigravity CLI on Cloud.\n")
+            except Exception:
+                pass
+
+        subprocess.run(["git", "checkout", "-B", "main"], cwd=project_dir, env=env, check=True, capture_output=True)
+        subprocess.run(["git", "add", ".gitignore", "README.md"], cwd=project_dir, env=env, check=False, capture_output=True)
+        if os.path.exists(os.path.join(project_dir, "prompt.txt")):
+            subprocess.run(["git", "add", "prompt.txt"], cwd=project_dir, env=env, check=False, capture_output=True)
+        status_res = subprocess.run(["git", "status", "--porcelain"], cwd=project_dir, env=env, capture_output=True, text=True)
+        if status_res.stdout.strip():
+            subprocess.run(["git", "commit", "-m", "chore: initial repository setup"], cwd=project_dir, env=env, check=True, capture_output=True)
+        subprocess.run(["git", "push", "-u", "origin", "main"], cwd=project_dir, env=env, capture_output=True, text=True)
+
+    return True, project_repo, repo_url
+
+
+def push_feature_branch_and_create_pr(
+    project_dir: str,
+    app_name: str,
+    branch_name: str,
+    title: str,
+    body: str,
+    target_repo: str | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[bool, str, str | None]:
+    """Commits changes on branch_name, pushes to remote, and creates a Pull Request via GitHub CLI."""
+    if env is None:
+        env = get_github_env()
+    is_authed, auth_msg = check_github_auth(env)
+    if not is_authed:
+        return False, auth_msg, None
+
+    ensure_git_config(env)
+    ok, project_repo, _ = ensure_remote_repo_and_main(project_dir, app_name, target_repo, env=env)
+    if not ok:
+        return False, "Failed to initialize remote repository", None
+
+    subprocess.run(["git", "checkout", "-B", branch_name], cwd=project_dir, env=env, check=True, capture_output=True)
+
+    gitignore_path = os.path.join(project_dir, ".gitignore")
+    if not os.path.exists(gitignore_path):
+        try:
+            with open(gitignore_path, "w", encoding="utf-8") as f:
+                f.write("__pycache__/\n*.py[cod]\n.venv/\nvenv/\nnode_modules/\n.pytest_cache/\n.DS_Store\n")
+        except Exception:
+            pass
+
+    subprocess.run(["git", "add", "."], cwd=project_dir, env=env, check=True, capture_output=True)
+    status_res = subprocess.run(["git", "status", "--porcelain"], cwd=project_dir, env=env, capture_output=True, text=True)
+    if status_res.stdout.strip():
+        commit_res = subprocess.run(["git", "commit", "-m", title], cwd=project_dir, env=env, capture_output=True, text=True)
+        if commit_res.returncode != 0:
+            return False, f"Git commit failed: {sanitize_git_output(commit_res.stderr or commit_res.stdout)}", None
+
+    push_res = subprocess.run(["git", "push", "-u", "origin", branch_name], cwd=project_dir, env=env, capture_output=True, text=True)
+    if push_res.returncode != 0:
+        push_res = subprocess.run(["git", "push", "--force", "-u", "origin", branch_name], cwd=project_dir, env=env, capture_output=True, text=True)
+        if push_res.returncode != 0:
+            err_msg = sanitize_git_output(push_res.stderr or push_res.stdout)
+            return False, f"Git push failed for branch '{branch_name}': {err_msg}", None
+
+    view_pr_res = subprocess.run(
+        ["gh", "pr", "view", branch_name, "--repo", project_repo, "--json", "url", "-q", ".url"],
+        cwd=project_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if view_pr_res.returncode == 0 and view_pr_res.stdout.strip():
+        pr_url = view_pr_res.stdout.strip()
+        return True, f"Pull Request updated on branch '{branch_name}'", pr_url
+
+    create_pr_res = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "create",
+            "--repo",
+            project_repo,
+            "--head",
+            branch_name,
+            "--base",
+            "main",
+            "--title",
+            title,
+            "--body",
+            body,
+        ],
+        cwd=project_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if create_pr_res.returncode == 0 and create_pr_res.stdout.strip():
+        pr_url = create_pr_res.stdout.strip()
+        return True, f"Pull Request successfully created for branch '{branch_name}'", pr_url
+
+    combined_out = (create_pr_res.stdout + "\n" + create_pr_res.stderr).strip()
+    m = re.search(r"https://github\.com/[^\s]+/pull/\d+", combined_out)
+    if m:
+        return True, f"Pull Request created for branch '{branch_name}'", m.group(0)
+
+    return False, f"Failed to create Pull Request: {sanitize_git_output(create_pr_res.stderr or create_pr_res.stdout)}", None
+
+
+def merge_pull_request(
+    project_dir: str,
+    app_name: str,
+    branch_name: str | None = None,
+    pr_identifier: str | None = None,
+    target_repo: str | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[bool, str]:
+    """Squash-merges an open Pull Request into main, deletes the feature branch, and syncs local workspace main."""
+    if env is None:
+        env = get_github_env()
+    is_authed, auth_msg = check_github_auth(env)
+    if not is_authed:
+        return False, auth_msg
+
+    owner = get_github_owner(env)
+    project_repo = target_repo if target_repo else f"{owner}/{app_name}"
+
+    target_pr = pr_identifier
+    if not target_pr and branch_name:
+        target_pr = branch_name
+    if not target_pr:
+        curr = get_current_branch(project_dir, env=env)
+        if curr.startswith("feature/"):
+            target_pr = curr
+
+    if not target_pr:
+        list_res = subprocess.run(
+            ["gh", "pr", "list", "--repo", project_repo, "--state", "open", "--limit", "1", "--json", "number,headRefName"],
+            cwd=project_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if list_res.returncode == 0 and list_res.stdout.strip():
+            import json
+            prs = json.loads(list_res.stdout)
+            if prs and len(prs) > 0:
+                target_pr = str(prs[0]["number"])
+                branch_name = prs[0].get("headRefName")
+
+    if not target_pr:
+        return False, f"No open Pull Request found for repository '{project_repo}'."
+
+    merge_res = subprocess.run(
+        ["gh", "pr", "merge", target_pr, "--repo", project_repo, "--squash", "--delete-branch", "--admin"],
+        cwd=project_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if merge_res.returncode != 0:
+        merge_res = subprocess.run(
+            ["gh", "pr", "merge", target_pr, "--repo", project_repo, "--squash", "--delete-branch"],
+            cwd=project_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if merge_res.returncode != 0:
+            err = sanitize_git_output(merge_res.stderr or merge_res.stdout)
+            return False, f"Failed to merge pull request {target_pr}: {err}"
+
+    try:
+        subprocess.run(["git", "checkout", "main"], cwd=project_dir, env=env, check=False, capture_output=True)
+        subprocess.run(["git", "pull", "--rebase", "origin", "main"], cwd=project_dir, env=env, check=False, capture_output=True)
+        if branch_name and branch_name != "main":
+            subprocess.run(["git", "branch", "-D", branch_name], cwd=project_dir, env=env, check=False, capture_output=True)
+    except Exception:
+        pass
+
+    return True, f"Pull Request {target_pr} successfully squash-merged into main, feature branch deleted, and local workspace synchronized with main."
+

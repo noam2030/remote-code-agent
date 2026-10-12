@@ -39,6 +39,64 @@ def write_project_prompt(project_dir: str, content: str) -> None:
         f.write(content.strip() + "\n")
 
 
+def append_numbered_prompt(project_dir: str, prompt_text: str) -> int:
+    """Appends a user prompt with sequential numbering to prompt.txt (Rule 1 of development-workflow).
+
+    Returns the assigned prompt sequence number.
+    """
+    clean_prompt = prompt_text.strip()
+    if not clean_prompt:
+        return 0
+
+    os.makedirs(project_dir, exist_ok=True)
+    prompt_file = get_project_prompt_path(project_dir)
+    lines = []
+    if os.path.isfile(prompt_file):
+        try:
+            with open(prompt_file, "r", encoding="utf-8") as f:
+                content = f.read()
+                lines = [line.strip() for line in content.splitlines() if line.strip()]
+        except Exception:
+            lines = []
+
+    max_num = 0
+    for line in lines:
+        m = re.match(r"^(\d+)\.\s+", line)
+        if m:
+            num = int(m.group(1))
+            if num > max_num:
+                max_num = num
+
+    next_num = max_num + 1
+    new_entry = f"{next_num}. {clean_prompt}\n"
+
+    with open(prompt_file, "a", encoding="utf-8") as f:
+        f.write(new_entry)
+
+    return next_num
+
+
+def get_last_feature_prompt(project_dir: str) -> str:
+    """Returns the most recent feature/instruction prompt from prompt.txt, ignoring confirm/merge/retry."""
+    prompt_file = get_project_prompt_path(project_dir)
+    if not os.path.isfile(prompt_file):
+        return ""
+    try:
+        with open(prompt_file, "r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f.readlines() if line.strip()]
+        for line in reversed(lines):
+            m = re.match(r"^\d+\.\s+(.*)$", line)
+            text = m.group(1).strip() if m else line
+            clean_text = text.lower()
+            if clean_text in {"confirm", "merge", "retry", "yes", "proceed", "approved", "ok", "lgtm"}:
+                continue
+            return text
+    except Exception:
+        pass
+    return ""
+
+
+
 def extract_baseline_from_readme(project_dir: str) -> Optional[str]:
     """Extracts high-level features and description from README.md if prompt.txt does not exist."""
     readme_path = os.path.join(project_dir, "README.md")

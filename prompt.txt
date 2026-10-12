@@ -103,3 +103,8 @@ Error: Process completed with exit code 1.
 97. i want to ge the list of the reposiroie in the same order i see it on github. the recent used is the first. also, delete the Antigravity CLI on Cloud text and the 'target: ' item to it's right. remove the add unit tests and add health checks
 98. confirm
 99. merge
+100. i built an application with 'remote-code-agent', but the agent did not follow the skills i told you to supply to it. for, example, it generate a code a pushed directly to main branch. but it did not ask me to approve, and did not open a merge request, as written in the skill. why?
+101. i would like remote-code-agent to behave like a true pair-programming agent that uses branches, PRs, and approval. *exactly* as you, just running on google cloud
+102. confirm
+103. retry
+
