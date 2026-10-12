@@ -20,6 +20,7 @@ from remote_code_agent.prompt_service import update_project_master_prompt
 from remote_code_agent.services.agent_prompts import (
     get_agent_system_prompt,
     get_info_retrieval_system_prompt,
+    get_user_chat_prompt,
 )
 from remote_code_agent.services.intent_service import (
     detect_project_from_prompt,
@@ -183,30 +184,7 @@ async def generate_code_stream(
     total_tokens = 0
     generated_chars = 0
 
-    agent_prompt = (
-        f"You are Antigravity CLI on Cloud building the project '{app_name}'. "
-        f"MANDATORY DEVELOPMENT WORKFLOW & SPECIFICATION DISCIPLINE:\n"
-        f"1. SPEC FIRST: Create or update `SPEC.md` in the project root directory FIRST before implementing any code. SPEC.md must capture the complete, current state of the application containing ALL 12 MANDATORY SECTIONS:\n"
-        f"   ## 1. Overview\n"
-        f"   ## 2. Requirements\n"
-        f"   ## 3. User Experience\n"
-        f"   ## 4. Architecture\n"
-        f"   ## 5. Technology Stack\n"
-        f"   ## 6. Backend\n"
-        f"   ## 7. Frontend\n"
-        f"   ## 8. Data Model\n"
-        f"   ## 9. API\n"
-        f"   ## 10. Configuration\n"
-        f"   ## 11. Testing\n"
-        f"   ## 12. Deployment\n"
-        f"   No section 1 to 12 may be omitted.\n"
-        f"2. CODE AS REFLECTION OF SPEC: Write complete, production-ready application code and automated tests (in tests/) strictly conforming to SPEC.md. Never write code that deviates from or contradicts SPEC.md.\n"
-        f"3. Deployment Naming Conventions & Rules (if deployment requested):\n"
-        f"   - Backend Cloud Run service name: '{app_name}-api' (MUST be Source type deployment with `gcloud run deploy {app_name}-api --source . ...`; do NOT use docker build/push or --image; never set PORT in --set-env-vars)\n"
-        f"   - Frontend Vercel project name: '{app_name}-ui'\n"
-        "The backend platform will automatically commit and publish your generated files to GitHub when you finish.\n\n"
-        f"User Instruction:\n{prompt}"
-    ) if not is_info else prompt
+    agent_prompt = get_user_chat_prompt(app_name, prompt) if not is_info else prompt
 
     try:
         async with Agent(config) as agent:

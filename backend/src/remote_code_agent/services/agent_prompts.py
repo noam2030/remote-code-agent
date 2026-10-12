@@ -1,4 +1,4 @@
-"""Service responsible for loading agent prompts and skills dynamically from docs/."""
+"""Service responsible for loading agent prompts and skills dynamically from backend/docs/."""
 
 import os
 import re
@@ -6,18 +6,18 @@ from pathlib import Path
 
 
 def find_docs_dir() -> Path:
-    """Discovers the docs/ directory across local workspaces and container environments."""
+    """Discovers the docs directory across local backend workspaces and container environments."""
     if "AGENT_DOCS_DIR" in os.environ:
         custom_path = Path(os.environ["AGENT_DOCS_DIR"]).resolve()
         if custom_path.is_dir():
             return custom_path
 
     current_file = Path(__file__).resolve()
-    # In local workspace: current_file.parents[4] is repo root
-    # In container: current_file.parents[3] is /app
+    # In local workspace: current_file.parents[3] is backend/ -> backend/docs
+    # In container: current_file.parents[3] is /app -> /app/docs
     candidates = [
-        current_file.parents[4] / "docs",
         current_file.parents[3] / "docs",
+        Path.cwd() / "backend" / "docs",
         Path.cwd() / "docs",
         Path("/app/docs"),
     ]
@@ -33,7 +33,7 @@ def find_docs_dir() -> Path:
 
 
 def load_prompt_markdown() -> str:
-    """Loads the raw content of docs/prompt.md from disk."""
+    """Loads the raw content of prompt.md from disk."""
     docs_dir = find_docs_dir()
     prompt_file = docs_dir / "prompt.md"
     if not prompt_file.is_file():
@@ -42,7 +42,7 @@ def load_prompt_markdown() -> str:
 
 
 def load_skill(skill_name: str) -> str:
-    """Loads an individual skill markdown file from docs/skills/<skill_name>.md."""
+    """Loads an individual skill markdown file from skills/<skill_name>.md."""
     docs_dir = find_docs_dir()
     skill_file = docs_dir / "skills" / f"{skill_name}.md"
     if not skill_file.is_file():
@@ -60,7 +60,7 @@ def _extract_section(markdown_text: str, section_number: int) -> str:
 
 
 def get_agent_system_prompt(target_name: str) -> str:
-    """Constructs the code generation system instructions dynamically from docs/."""
+    """Constructs the code generation system instructions dynamically from backend/docs/."""
     raw_md = load_prompt_markdown()
     section_template = _extract_section(raw_md, 1)
 
@@ -74,14 +74,29 @@ def get_agent_system_prompt(target_name: str) -> str:
 
 
 def get_info_retrieval_system_prompt(target_name: str) -> str:
-    """Constructs the info retrieval system instructions dynamically from docs/."""
+    """Constructs the info retrieval system instructions dynamically from backend/docs/."""
     raw_md = load_prompt_markdown()
     section_template = _extract_section(raw_md, 2)
     return section_template.replace("{target_name}", target_name)
 
 
 def get_prompt_synthesis_system_prompt(app_name: str) -> str:
-    """Constructs the master prompt synthesis system instructions dynamically from docs/."""
+    """Constructs the master prompt synthesis system instructions dynamically from backend/docs/."""
     raw_md = load_prompt_markdown()
     section_template = _extract_section(raw_md, 3)
     return section_template.replace("{app_name}", app_name)
+
+
+def get_user_chat_prompt(app_name: str, user_instruction: str) -> str:
+    """Constructs the code generation chat prompt message dynamically from backend/docs/."""
+    raw_md = load_prompt_markdown()
+    section_template = _extract_section(raw_md, 4)
+
+    spec_skill = load_skill("project-specification")
+    dev_skill = load_skill("development-workflow")
+    combined_skills = f"{spec_skill}\n\n{dev_skill}"
+
+    prompt = section_template.replace("{skills}", combined_skills)
+    prompt = prompt.replace("{app_name}", app_name)
+    prompt = prompt.replace("{user_instruction}", user_instruction)
+    return prompt

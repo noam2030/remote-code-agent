@@ -43,6 +43,7 @@ from remote_code_agent.services.agent_prompts import (
     get_agent_system_prompt,
     get_info_retrieval_system_prompt,
     get_prompt_synthesis_system_prompt,
+    get_user_chat_prompt,
     load_prompt_markdown,
     load_skill,
 )
@@ -79,6 +80,7 @@ __all__ = [
     "get_agent_system_prompt",
     "get_info_retrieval_system_prompt",
     "get_prompt_synthesis_system_prompt",
+    "get_user_chat_prompt",
     "find_docs_dir",
     "load_skill",
     "load_prompt_markdown",

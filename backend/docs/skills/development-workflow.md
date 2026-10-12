@@ -2,11 +2,11 @@
 
 ## Discipline: Spec-First, Testing, and Prompt History
 
-### 1. Spec First, Then Code
+### 1. SPEC FIRST: Spec First, Then Code
 - When creating or updating an application, you MUST create or update `SPEC.md` FIRST before implementing code changes.
 - Never write code or modify implementation files before the specification is updated to reflect the new requirements.
 
-### 2. Code as an Exact Reflection of SPEC.md
+### 2. CODE AS REFLECTION OF SPEC: Code as an Exact Reflection of SPEC.md
 - Every implementation, modification, or bug fix must strictly conform to `SPEC.md`.
 - Never write code or introduce architectural changes that deviate from or contradict `SPEC.md`.
 

@@ -94,3 +94,5 @@ Error: Process completed with exit code 1.
 88. confirm
 89. update the pull request. why the agent_prompts.py contains all the prompt? it should be in the docs only
 90. confirm
+91. i want that the docs will be inside the backend folder. no seperation of logic in any case. also, i see promts in code_creation.py, why? agent_prompt
+92. confirm

@@ -9,6 +9,7 @@ from remote_code_agent.services.agent_prompts import (
     get_agent_system_prompt,
     get_info_retrieval_system_prompt,
     get_prompt_synthesis_system_prompt,
+    get_user_chat_prompt,
     load_prompt_markdown,
     load_skill,
 )
@@ -90,7 +91,16 @@ class TestAgentPrompts(unittest.TestCase):
         self.assertIn("12 mandatory sections", prompt)
         self.assertIn("sample-service-api", prompt)
         self.assertIn("sample-service-ui", prompt)
-        self.assertIn("ai-learning-499409", prompt)
+    def test_get_user_chat_prompt_interpolation(self):
+        """Verifies get_user_chat_prompt formats app name, user instruction, and skills."""
+        prompt = get_user_chat_prompt("chat-app", "Build a hello world web UI")
+        self.assertIn("building the project 'chat-app'", prompt)
+        self.assertIn("MANDATORY DEVELOPMENT WORKFLOW & SPECIFICATION DISCIPLINE", prompt)
+        self.assertIn("project-specification", prompt)
+        self.assertIn("development-workflow", prompt)
+        self.assertIn("chat-app-api", prompt)
+        self.assertIn("chat-app-ui", prompt)
+        self.assertIn("Build a hello world web UI", prompt)
 
 
 if __name__ == "__main__":

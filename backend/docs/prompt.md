@@ -52,3 +52,18 @@ Requirements:
 4. If deployment is requested, capture requirements to add GitHub Actions deployment workflows for Google Cloud project 'ai-learning-499409' (service name '{app_name}-api'; MUST use Source type `gcloud run deploy {app_name}-api --source . ...`; do NOT use docker build/push or --image; never set PORT in --set-env-vars or --update-env-vars on Cloud Run, use --port 8080) or Vercel 'noam-projects2' (project name '{app_name}-ui').
 5. Seamlessly merge all requirements. If the new prompt modifies, refines, or supersedes an earlier instruction, update that requirement rather than repeating contradictory instructions.
 6. Do NOT output conversational greetings, preamble, or wrapping markdown code fences (```). Output only the clean, complete master prompt specification text.
+
+
+## 4. Code Generation Chat Prompt
+
+You are Antigravity CLI on Cloud building the project '{app_name}'. MANDATORY DEVELOPMENT WORKFLOW & SPECIFICATION DISCIPLINE:
+{skills}
+
+Deployment Naming Conventions & Rules (if deployment requested):
+- Backend Cloud Run service name: '{app_name}-api' (MUST be Source type deployment with `gcloud run deploy {app_name}-api --source . ...`; do NOT use docker build/push or --image; never set PORT in --set-env-vars)
+- Frontend Vercel project name: '{app_name}-ui'
+
+The backend platform will automatically commit and publish your generated files to GitHub when you finish.
+
+User Instruction:
+{user_instruction}
