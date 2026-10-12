@@ -50,6 +50,7 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
   - On mobile screens (viewports under 768px), the layout provides a dedicated mobile view toggle at the top (`⚡ Live Console` and `📁 Projects`).
   - When an active run is detected on page load (or by default when generating), the mobile view focuses directly on the **Target Project Banner**, **Prompt Editor**, and **Live Terminal Stream**, preventing the project sidebar from being awkwardly stacked on top and pushing the console off-screen.
   - Tapping `📁 Projects` displays the project list and search box; selecting a repository switches back to the Console view with the selected project ready for generation.
+  - The project list scroll container is strictly constrained to the remaining dynamic viewport height (`100dvh`), utilizing native momentum scrolling (`-webkit-overflow-scrolling: touch; touch-action: pan-y;`) and generous safe-area bottom padding (`calc(5rem + env(safe-area-inset-bottom, 2rem))`) to prevent touch event lockups, container freezing, or clipping of bottom cards behind mobile browser navigation bars.
   - Terminal output and prompt editor are optimized for touch interaction with full-width action buttons and readable mobile monospace sizing.
 - **Target Project Banner & File Explorer**:
   - Displays the active project name, direct GitHub link, lines of code, and file count.
@@ -57,8 +58,8 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
 - **Terminal & Log Viewer**: Real-time console view rendering color-coded output from backend SSE streams during code generation, testing, and GitHub pushing. Supports replaying buffered logs for newly attached clients.
 - **Execution Controls**: Prompt input with quick actions to initiate generation, inspect architecture, or cancel in-progress operations.
 - **Fixed Viewport & Independent Pane Scrolling**:
-  - The application desktop layout is fixed to the screen height (`100vh`) with zero document-level page scrolling.
-  - The left sidebar fills the viewport height below the header with its header and search input fixed in place, while only the project items list (`.project-list`) scrolls vertically with contained overscroll.
+  - The application desktop and mobile layouts adapt dynamically to viewport height (`100vh` and `100dvh`) with zero document-level page overflow.
+  - The left sidebar fills the viewport height below the header with its header and search input fixed in place, while only the project items list (`.project-list`) scrolls vertically with native touch scrolling and ample bottom padding.
   - The right content area is fixed to the screen height (`overflow: hidden`). The target project banner and prompt input are fixed at the top, while the terminal panel flexes to consume the remaining height, with only the terminal output log area scrolling vertically.
 
 ## 4. Architecture
@@ -115,7 +116,7 @@ The frontend is structured under `frontend/`:
 - `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints, active run retrieval (`getActiveRun`), and streaming endpoints (`streamActiveRun`, `generateCodeStream`).
 - `src/types/`: Interfaces for projects, generation events, active runs, file trees, and system status.
 - `src/App.tsx`: Top-level application state orchestrator, handling project creation persistence, active project selection with case-insensitivity, active run auto-detection and re-connection on mount, seamless mobile handover, mobile view switching (`⚡ Live Console` / `📁 Projects`), non-blocking stream lifecycle with background poll fallback, and code generation streaming.
-- `src/index.css`: Global styles, fixed viewport desktop layout (`100vh`) with independent scrolling containers, mobile navigation tab styles, and responsive breakpoints for mobile phone browsers (< 768px) ensuring the terminal viewer and prompt input are prominently accessible without vertical crowding.
+- `src/index.css`: Global styles, dynamic viewport height sizing (`100vh` and `100dvh`), flex-constrained independent scrolling containers, mobile navigation tab styles, touch-friendly scroll physics (`touch-action: pan-y; -webkit-overflow-scrolling: touch`), and safe-area bottom padding ensuring the full project catalog scrolls smoothly to the last item on mobile without lockups.
 - `vercel.json`: Routing and static asset caching configuration.
 
 

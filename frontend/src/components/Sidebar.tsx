@@ -216,6 +216,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )
           })
         )}
+        <div className="project-list-bottom-spacer" style={{ height: '3.5rem', flexShrink: 0 }} aria-hidden="true" />
       </div>
     </aside>
   )
