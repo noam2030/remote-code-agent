@@ -77,17 +77,42 @@ class RunManager:
                 "Please wait for it to complete."
             )
 
+        prior_logs: list[str] = []
+        effective_project = project_name
+        if self.current_run:
+            curr_proj = (self.current_run.project_name or "").strip().lower()
+            req_proj = (project_name or "").strip().lower()
+            if not effective_project and self.current_run.project_name:
+                effective_project = self.current_run.project_name
+
+            # Inherit prior logs if this is a continuation (confirm / merge) for the same project
+            if not req_proj or not curr_proj or curr_proj == req_proj:
+                try:
+                    from remote_code_agent.services.intent_service import (
+                        is_confirmation_request,
+                        is_merge_request,
+                    )
+                    if is_confirmation_request(prompt) or is_merge_request(prompt):
+                        prior_logs = list(self.current_run.logs)
+                        if prior_logs:
+                            if not "".join(prior_logs).endswith("\n"):
+                                prior_logs.append("\n")
+                            prior_logs.append(f"\n💬 [User] {prompt}\n\n")
+                except Exception:
+                    pass
+
         run_id = str(uuid.uuid4())
         run = ActiveRun(
             run_id=run_id,
-            project_name=project_name,
+            project_name=effective_project,
             prompt=prompt,
             status="running",
             started_at=time.time(),
+            logs=prior_logs,
         )
         self.current_run = run
 
-        gen = (generator_fn or generate_code_stream)(prompt, project_name=project_name)
+        gen = (generator_fn or generate_code_stream)(prompt, project_name=effective_project)
         task = asyncio.create_task(self._execute_run(run, gen))
         run.task = task
         return run
@@ -150,11 +175,11 @@ class RunManager:
             return
 
         # Run is currently running:
+        current_logs = "".join(run.logs)
+        snapshot_len = len(current_logs)
         q: asyncio.Queue[str | None] = asyncio.Queue()
         run.subscribers.add(q)
         try:
-            current_logs = "".join(run.logs)
-            snapshot_len = len(current_logs)
             if offset < snapshot_len:
                 yield current_logs[offset:]
             elif offset >= snapshot_len:

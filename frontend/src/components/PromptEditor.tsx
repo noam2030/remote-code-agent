@@ -48,6 +48,14 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
     }
   }
 
+  const handleChipClick = (chipPrompt: string) => {
+    if (isGenerating) return
+    setPrompt(chipPrompt)
+    if (chipPrompt === 'confirm' || chipPrompt === 'merge') {
+      onSubmit(chipPrompt, selectedProject?.name)
+    }
+  }
+
   return (
     <div className="generator-card">
       <div className="chips-row">
@@ -56,7 +64,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
             key={idx}
             type="button"
             className="prompt-chip"
-            onClick={() => setPrompt(chip.prompt)}
+            onClick={() => handleChipClick(chip.prompt)}
             disabled={isGenerating}
           >
             {chip.label}

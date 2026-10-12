@@ -19,6 +19,7 @@ router = APIRouter()
 class GenerateRequest(BaseModel):
     prompt: str
     project_name: str | None = None
+    offset: int = 0
 
 
 @router.get("/health")
@@ -122,7 +123,7 @@ async def api_generate_post(request: GenerateRequest):
         raise HTTPException(status_code=409, detail=str(e))
 
     return StreamingResponse(
-        run_manager.stream_run(run.run_id),
+        run_manager.stream_run(run.run_id, offset=request.offset),
         media_type="text/plain; charset=utf-8",
         headers={
             "Cache-Control": "no-cache, no-transform",
