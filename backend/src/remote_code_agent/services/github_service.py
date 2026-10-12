@@ -32,6 +32,45 @@ def derive_project_slug(prompt: str) -> str:
     return f"{base}-{ts}"
 
 
+def derive_feature_branch_name(prompt: str) -> str:
+    """Derives a deterministic, clean feature branch name (e.g. 'feature/weather-dashboard') from prompt."""
+    m = re.search(r'(?:named?|called)\s+([a-zA-Z0-9_\-]+)', prompt, re.IGNORECASE)
+    if m:
+        name = m.group(1).lower().replace('_', '-')
+        if name not in {'a', 'an', 'the', 'new', 'this', 'my'}:
+            return f"feature/{name}"
+
+    words = re.findall(r'[a-zA-Z0-9]+', prompt.lower())
+    stop_words = {
+        'a', 'an', 'the', 'in', 'on', 'at', 'for', 'to', 'of', 'and', 'is', 'it',
+        'with', 'write', 'create', 'build', 'make', 'generate', 'please', 'app',
+        'application', 'repo', 'repository', 'script', 'code', 'add', 'fix', 'update',
+        'implement', 'modify', 'change', 'new', 'feature',
+    }
+    keywords = [w for w in words if w not in stop_words]
+    base = '-'.join(keywords[:3]) if keywords else 'enhancement'
+    return f"feature/{base}"
+
+
+def get_repo_default_branch(project_repo: str, env: dict[str, str] | None = None) -> str:
+    """Retrieves the default branch name of the remote repository (e.g. 'main' or 'master')."""
+    if env is None:
+        env = get_github_env()
+    try:
+        res = subprocess.run(
+            ["gh", "repo", "view", project_repo, "--json", "defaultBranchRef", "-q", ".defaultBranchRef.name"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+    return "main"
+
+
 def get_github_env() -> dict[str, str]:
     """Prepares environment variables for git and gh CLI operations, injecting GH_TOKEN if configured."""
     env = os.environ.copy()
@@ -568,15 +607,18 @@ def push_feature_branch_and_create_pr(
             err_msg = sanitize_git_output(push_res.stderr or push_res.stdout)
             return False, f"Git push failed for branch '{branch_name}': {err_msg}", None
 
-    view_pr_res = subprocess.run(
-        ["gh", "pr", "view", branch_name, "--repo", project_repo, "--json", "url", "-q", ".url"],
+    default_base = get_repo_default_branch(project_repo, env=env)
+
+    # Check if a PR already exists for this feature branch
+    list_pr_res = subprocess.run(
+        ["gh", "pr", "list", "--repo", project_repo, "--head", branch_name, "--json", "url", "-q", ".[0].url"],
         cwd=project_dir,
         env=env,
         capture_output=True,
         text=True,
     )
-    if view_pr_res.returncode == 0 and view_pr_res.stdout.strip():
-        pr_url = view_pr_res.stdout.strip()
+    if list_pr_res.returncode == 0 and list_pr_res.stdout.strip():
+        pr_url = list_pr_res.stdout.strip()
         return True, f"Pull Request updated on branch '{branch_name}'", pr_url
 
     create_pr_res = subprocess.run(
@@ -589,7 +631,7 @@ def push_feature_branch_and_create_pr(
             "--head",
             branch_name,
             "--base",
-            "main",
+            default_base,
             "--title",
             title,
             "--body",

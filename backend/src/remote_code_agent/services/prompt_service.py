@@ -82,13 +82,27 @@ def get_last_feature_prompt(project_dir: str) -> str:
     if not os.path.isfile(prompt_file):
         return ""
     try:
+        from remote_code_agent.services.intent_service import (
+            is_confirmation_request,
+            is_merge_request,
+        )
+    except Exception:
+        is_confirmation_request = lambda p: False
+        is_merge_request = lambda p: False
+
+    skip_words = {
+        "confirm", "confirmed", "confrim", "merge", "retry", "yes", "proceed",
+        "approved", "ok", "okay", "lgtm", "yep", "yeah", "sure", "confirm plan",
+    }
+
+    try:
         with open(prompt_file, "r", encoding="utf-8") as f:
             lines = [line.strip() for line in f.readlines() if line.strip()]
         for line in reversed(lines):
             m = re.match(r"^\d+\.\s+(.*)$", line)
             text = m.group(1).strip() if m else line
-            clean_text = text.lower()
-            if clean_text in {"confirm", "merge", "retry", "yes", "proceed", "approved", "ok", "lgtm"}:
+            clean_text = text.lower().strip("\"'`# \t\n")
+            if clean_text in skip_words or is_confirmation_request(text) or is_merge_request(text):
                 continue
             return text
     except Exception:

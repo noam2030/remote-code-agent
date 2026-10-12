@@ -6,7 +6,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from remote_code_agent.prompt_service import (
     PROMPT_FILE_NAME,
+    append_numbered_prompt,
     extract_baseline_from_readme,
+    get_last_feature_prompt,
     get_project_prompt_path,
     read_project_prompt,
     synthesize_master_prompt_with_ai,
@@ -190,6 +192,36 @@ class TestPromptService(unittest.IsolatedAsyncioTestCase):
             )
             self.assertIn("Add CSV export and dark theme", updated_2)
             self.assertIn("Create a stock portfolio tracking dashboard with charts", updated_2)
+
+    def test_append_numbered_prompt_and_get_last_feature(self):
+        num1 = append_numbered_prompt(self.test_dir, "Build a weather forecast dashboard")
+        self.assertEqual(num1, 1)
+
+        num2 = append_numbered_prompt(self.test_dir, "confirm")
+        self.assertEqual(num2, 2)
+
+        num3 = append_numbered_prompt(self.test_dir, "confrim")
+        self.assertEqual(num3, 3)
+
+        num4 = append_numbered_prompt(self.test_dir, "confirm plan")
+        self.assertEqual(num4, 4)
+
+        # get_last_feature_prompt skips all confirmations and returns the original instruction
+        last_feat = get_last_feature_prompt(self.test_dir)
+        self.assertEqual(last_feat, "Build a weather forecast dashboard")
+
+        num5 = append_numbered_prompt(self.test_dir, "merge")
+        self.assertEqual(num5, 5)
+
+        last_feat_after_merge = get_last_feature_prompt(self.test_dir)
+        self.assertEqual(last_feat_after_merge, "Build a weather forecast dashboard")
+
+        # Adding a new feature prompt updates the last feature
+        num6 = append_numbered_prompt(self.test_dir, "Add temperature toggle between C and F")
+        self.assertEqual(num6, 6)
+
+        last_feat_new = get_last_feature_prompt(self.test_dir)
+        self.assertEqual(last_feat_new, "Add temperature toggle between C and F")
 
 
 if __name__ == "__main__":

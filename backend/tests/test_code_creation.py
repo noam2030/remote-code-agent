@@ -132,7 +132,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
     async def test_generate_code_stream_execution_on_confirm(self):
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        mock_update = AsyncMock()
+        mock_ensure_main = MagicMock(return_value=True)
         mock_pr = MagicMock(return_value=(True, "PR created", "https://github.com/testuser/weather-test/pull/1"))
         captured_agent = None
 
@@ -158,7 +158,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             async def __aexit__(self, exc_type, exc_val, exc_tb):
                 pass
 
-        with patch("remote_code_agent.services.code_creation.update_project_master_prompt", mock_update), \
+        with patch("remote_code_agent.services.code_creation.ensure_remote_repo_and_main", mock_ensure_main), \
              patch("remote_code_agent.services.code_creation.Agent", MockAgentCM), \
              patch("remote_code_agent.services.code_creation.push_feature_branch_and_create_pr", mock_pr):
 
@@ -166,7 +166,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             async for chunk in generate_code_stream("confirm", project_name="weather-test"):
                 chunks.append(chunk)
 
-            mock_update.assert_awaited_once()
+            mock_ensure_main.assert_called_once()
             mock_pr.assert_called_once()
             output = "".join(chunks)
             self.assertIn("Execution Mode", output)
@@ -253,7 +253,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         from unittest.mock import AsyncMock, MagicMock, patch
 
         mock_sync = MagicMock(return_value=True)
-        mock_update = AsyncMock()
+        mock_ensure_main = MagicMock(return_value=True)
         mock_pr = MagicMock(return_value=(True, "PR created", "https://github.com/noam2030/remote-target-repo/pull/1"))
 
         class MockAgentCM:
@@ -272,7 +272,7 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
                 pass
 
         with patch("remote_code_agent.services.code_creation.sync_project_from_github", mock_sync), \
-             patch("remote_code_agent.services.code_creation.update_project_master_prompt", mock_update), \
+             patch("remote_code_agent.services.code_creation.ensure_remote_repo_and_main", mock_ensure_main), \
              patch("remote_code_agent.services.code_creation.Agent", MockAgentCM), \
              patch("remote_code_agent.services.code_creation.push_feature_branch_and_create_pr", mock_pr):
 
