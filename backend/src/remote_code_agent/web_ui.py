@@ -1206,27 +1206,13 @@ def get_web_ui_html() -> str:
 
       <!-- Generator Section -->
       <div class="generator-card">
-        <div class="card-header-row">
-          <h3 class="card-title">✨ Autonomous Code Generation</h3>
-          <div class="correlation-notice">
-            <span>📌</span>
-            <span>Target: <strong id="noticeTargetName">select a project</strong></span>
-          </div>
-        </div>
-
         <!-- Quick Prompt Suggestions -->
         <div class="chips-row">
-          <button class="prompt-chip" data-prompt="Add a health check endpoint and update OpenAPI documentation">
-            🏥 Add Health Check
-          </button>
           <button class="prompt-chip" data-prompt="Build a responsive web user interface with a modern dark theme">
             🎨 Modernize UI
           </button>
-          <button class="prompt-chip" data-prompt="Create comprehensive automated unit tests in tests/ directory">
-            🧪 Add Unit Tests
-          </button>
-          <button class="prompt-chip" data-prompt="Add a Dockerfile and configure for Google Cloud Run on port $PORT">
-            🐳 Cloud Run Setup
+          <button class="prompt-chip" data-prompt="Deploy this application with GitHub Actions workflows for Google Cloud project ai-learning and Vercel noam-projects2">
+            🚀 Deploy Workflows
           </button>
         </div>
 
@@ -1475,7 +1461,7 @@ def get_web_ui_html() -> str:
     async function selectProject(p) {
       selectedProject = p;
       bannerProjectName.textContent = p.name;
-      noticeTargetName.textContent = p.name;
+      if (noticeTargetName) noticeTargetName.textContent = p.name;
       footerTargetName.textContent = `${p.name}/`;
 
       bannerStatsRow.style.display = 'flex';
