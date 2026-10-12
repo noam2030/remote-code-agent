@@ -15,7 +15,6 @@ import { Header } from './components/Header'
 import { MasterPromptModal } from './components/MasterPromptModal'
 import { PromptEditor } from './components/PromptEditor'
 import { Sidebar } from './components/Sidebar'
-import { TargetProjectBanner } from './components/TargetProjectBanner'
 import { TerminalStream } from './components/TerminalStream'
 
 export function App() {
@@ -315,18 +314,24 @@ export function App() {
     }
   }
 
-  const handleOpenMasterPrompt = async () => {
-    if (!selectedProject) return
+  const handleOpenMasterPrompt = async (projectName?: string) => {
+    const target = projectName || selectedProject?.name
+    if (!target) return
     setLoadingMasterPrompt(true)
     setMasterPromptFile(null)
     try {
-      const res = await getFileContent(selectedProject.name, 'prompt.txt')
+      const res = await getFileContent(target, 'prompt.txt')
       setMasterPromptFile(res)
     } catch (err: any) {
       showToast(`Could not load prompt.txt: ${err.message}`)
     } finally {
       setLoadingMasterPrompt(false)
     }
+  }
+
+  const handleOpenProjectFiles = async (proj: Project) => {
+    await handleSelectProject(proj)
+    setFilesDrawerOpen(true)
   }
 
   const handleGenerate = async (prompt: string, targetProject?: string) => {
@@ -348,11 +353,6 @@ export function App() {
       setIsGenerating(false)
     }
   }
-
-  const filesCount =
-    selectedProject?.files_count ||
-    (selectedProject?.files_detail ? selectedProject.files_detail.length : 0) ||
-    (selectedProject?.files ? selectedProject.files.length : 0)
 
   return (
     <div className="app-layout">
@@ -386,17 +386,11 @@ export function App() {
           onSelectProject={handleSelectProject}
           onCreateProject={handleCreateProject}
           onRefresh={fetchProjects}
+          onOpenProjectFiles={handleOpenProjectFiles}
+          onOpenMasterPrompt={(proj) => handleOpenMasterPrompt(proj.name)}
         />
 
         <section className="content-area">
-          <TargetProjectBanner
-            project={selectedProject}
-            filesCount={filesCount}
-            filesOpen={filesDrawerOpen}
-            onToggleFiles={() => setFilesDrawerOpen((prev) => !prev)}
-            onOpenMasterPrompt={handleOpenMasterPrompt}
-          />
-
           <FilesDrawer
             project={selectedProject}
             isOpen={filesDrawerOpen}

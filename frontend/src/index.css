@@ -347,9 +347,9 @@ main.main-grid {
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-    padding: 0.75rem;
+    padding: 0.65rem;
     padding-bottom: calc(5rem + env(safe-area-inset-bottom, 2rem)) !important;
-    gap: 1rem;
+    gap: 0.75rem;
     min-height: 0;
   }
 
@@ -379,7 +379,34 @@ main.main-grid {
     padding-bottom: calc(6rem + env(safe-area-inset-bottom, 2rem)) !important;
   }
 
+  .generator-card {
+    padding: 0.75rem 0.85rem;
+    gap: 0.5rem;
+    border-radius: 10px;
+  }
+
+  .card-title {
+    font-size: 0.9rem;
+  }
+
+  .correlation-notice {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .chips-row {
+    display: none; /* Hide quick chips on mobile to give maximum room to terminal */
+  }
+
+  .prompt-textarea {
+    min-height: 55px;
+    max-height: 85px;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.65rem;
+  }
+
   .terminal-card {
+    flex: 1;
     min-height: 300px;
   }
 
@@ -387,20 +414,21 @@ main.main-grid {
     padding: 0.75rem 0.85rem;
     font-size: 14px;
     line-height: 1.6;
-    height: 350px;
+    height: auto;
+    min-height: 240px;
   }
 
   .generator-footer {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .btn-generate {
     width: 100%;
     justify-content: center;
-    padding: 0.75rem 1rem;
-    font-size: 0.95rem;
+    padding: 0.65rem 1rem;
+    font-size: 0.9rem;
   }
 
   .banner-actions {
@@ -649,6 +677,20 @@ main.main-grid {
   color: var(--text-dim);
 }
 
+button.tag-action-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+button.tag-action-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text-main);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
 .tag-loc {
   background: rgba(139, 92, 246, 0.12);
   color: #c4b5fd;
@@ -660,6 +702,19 @@ main.main-grid {
   color: #fcd34d;
   border: 1px solid rgba(245, 158, 11, 0.25);
 }
+
+.tag-prompt {
+  background: rgba(168, 85, 247, 0.12);
+  color: #d8b4fe;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
+button.tag-prompt:hover {
+  background: rgba(168, 85, 247, 0.24);
+  color: #f3e8ff;
+  border-color: rgba(168, 85, 247, 0.45);
+}
+
 
 /* Right Content Area */
 .content-area {

@@ -48,19 +48,23 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
   - When the process completes, the terminal stream displays the final output, and the prompt input is fully enabled so the user can immediately continue prompting directly from their phone.
 - **Mobile Responsive Layout & View Switching (`⚡ Live Console` / `📁 Projects`)**:
   - On mobile screens (viewports under 768px), the layout provides a dedicated mobile view toggle at the top (`⚡ Live Console` and `📁 Projects`).
-  - When an active run is detected on page load (or by default when generating), the mobile view focuses directly on the **Target Project Banner**, **Prompt Editor**, and **Live Terminal Stream**, preventing the project sidebar from being awkwardly stacked on top and pushing the console off-screen.
-  - Tapping `📁 Projects` displays the project list and search box; selecting a repository switches back to the Console view with the selected project ready for generation.
+  - When viewing the console, the view focuses immediately and cleanly on the **Prompt Editor** and **Live Terminal Stream**, removing any redundant top project details banner to maximize visible console height on mobile.
+  - Tapping `📁 Projects` displays the comprehensive project list and search box; selecting a repository switches back to the Console view with the selected project ready for generation.
   - The project list scroll container is strictly constrained to the remaining dynamic viewport height (`100dvh`), utilizing native momentum scrolling (`-webkit-overflow-scrolling: touch; touch-action: pan-y;`) and generous safe-area bottom padding (`calc(5rem + env(safe-area-inset-bottom, 2rem))`) to prevent touch event lockups, container freezing, or clipping of bottom cards behind mobile browser navigation bars.
   - Terminal output and prompt editor are optimized for touch interaction with full-width action buttons and readable mobile monospace sizing.
-- **Target Project Banner & File Explorer**:
-  - Displays the active project name, direct GitHub link, lines of code, and file count.
+- **Comprehensive Project Cards & File Explorer**:
+  - All project details, links, and drawer actions are consolidated directly within each project card in the sidebar:
+    - Repository name, description, and active selection indicator.
+    - Deployment and repository links: `🌐 UI` (Vercel Live URL), `🚀 API` (Cloud Run API URL), and `🐙 GitHub`.
+    - Project statistics: Lines of Code (LOC), Tokens Spent, and File Count.
+    - Drawer and modal actions: Direct action to toggle the project files drawer and direct action to view the master prompt (`prompt.txt`).
   - On-demand file explorer drawer allows opening and inspecting source files and master prompt history (`prompt.txt`).
 - **Terminal & Log Viewer**: Real-time console view rendering color-coded output from backend SSE streams during code generation, testing, and GitHub pushing. Supports replaying buffered logs for newly attached clients.
 - **Execution Controls**: Prompt input with quick actions to initiate generation, inspect architecture, or cancel in-progress operations.
 - **Fixed Viewport & Independent Pane Scrolling**:
   - The application desktop and mobile layouts adapt dynamically to viewport height (`100vh` and `100dvh`) with zero document-level page overflow.
   - The left sidebar fills the viewport height below the header with its header and search input fixed in place, while only the project items list (`.project-list`) scrolls vertically with native touch scrolling and ample bottom padding.
-  - The right content area is fixed to the screen height (`overflow: hidden`). The target project banner and prompt input are fixed at the top, while the terminal panel flexes to consume the remaining height, with only the terminal output log area scrolling vertically.
+  - The right content area is fixed to the screen height (`overflow: hidden`). The prompt input sits at the top, while the terminal panel flexes to consume the remaining height, with only the terminal output log area scrolling vertically.
 
 ## 4. Architecture
 The system consists of two primary tiers:
@@ -112,10 +116,10 @@ The backend is structured under `backend/src/remote_code_agent`:
 
 ## 7. Frontend
 The frontend is structured under `frontend/`:
-- `src/components/`: Reusable UI modules including `Header`, `Sidebar`, `TargetProjectBanner` (supporting dual links for 🌐 Live UI on Vercel and 🚀 Backend API on Cloud Run), `FilesDrawer`, `TerminalStream`, `PromptEditor`, and modal dialogs.
+- `src/components/`: Reusable UI modules including `Header`, `Sidebar` (hosting complete project details, stats, deployment links, and direct file/prompt drawer actions), `FilesDrawer`, `TerminalStream`, `PromptEditor`, and modal dialogs.
 - `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints, active run retrieval (`getActiveRun`), and streaming endpoints (`streamActiveRun`, `generateCodeStream`).
 - `src/types/`: Interfaces for projects, generation events, active runs, file trees, and system status.
-- `src/App.tsx`: Top-level application state orchestrator, handling project creation persistence, active project selection with case-insensitivity, active run auto-detection and re-connection on mount, seamless mobile handover, mobile view switching (`⚡ Live Console` / `📁 Projects`), non-blocking stream lifecycle with background poll fallback, and code generation streaming.
+- `src/App.tsx`: Top-level application state orchestrator, handling project creation persistence, active project selection with case-insensitivity, active run auto-detection and re-connection on mount, seamless mobile handover, mobile view switching (`⚡ Live Console` / `📁 Projects`), streamlined console area without top banner, non-blocking stream lifecycle with background poll fallback, and code generation streaming.
 - `src/index.css`: Global styles, dynamic viewport height sizing (`100vh` and `100dvh`), flex-constrained independent scrolling containers, mobile navigation tab styles, touch-friendly scroll physics (`touch-action: pan-y; -webkit-overflow-scrolling: touch`), and safe-area bottom padding ensuring the full project catalog scrolls smoothly to the last item on mobile without lockups.
 - `vercel.json`: Routing and static asset caching configuration.
 

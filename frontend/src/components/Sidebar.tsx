@@ -8,6 +8,8 @@ interface SidebarProps {
   onSelectProject: (project: Project | null) => void
   onCreateProject?: (projectName: string) => void
   onRefresh: () => void
+  onOpenProjectFiles?: (project: Project) => void
+  onOpenMasterPrompt?: (project: Project) => void
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -17,6 +19,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectProject,
   onCreateProject,
   onRefresh,
+  onOpenProjectFiles,
+  onOpenMasterPrompt,
 }) => {
   const [search, setSearch] = useState('')
   const [showNewBox, setShowNewBox] = useState(false)
@@ -122,6 +126,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               selectedProject && selectedProject.name.toLowerCase() === proj.name.toLowerCase()
             )
             const fileCount = proj.files_count || (proj.files_detail ? proj.files_detail.length : 0)
+            const hasPromptTxt =
+              Boolean(proj.files && proj.files.includes('prompt.txt')) ||
+              Boolean(proj.files_detail && proj.files_detail.some((f) => f.path === 'prompt.txt'))
 
             return (
               <div
@@ -195,21 +202,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </span>
                   )}
                   {fileCount > 0 ? (
-                    <span className="project-tag tag-files">📄 {fileCount} files</span>
+                    <button
+                      type="button"
+                      className="project-tag tag-files tag-action-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onOpenProjectFiles?.(proj)
+                      }}
+                      title="Open project files"
+                    >
+                      📁 {fileCount} files
+                    </button>
                   ) : (!proj.has_remote && !proj.is_local) ? (
                     <span className="project-tag tag-files" style={{ borderColor: '#10b981', color: '#10b981' }}>✨ New</span>
                   ) : (
                     <span className="project-tag tag-files">☁️ GitHub</span>
                   )}
                   {proj.lines_of_code > 0 && (
-                    <span className="project-tag tag-loc">
+                    <span className="project-tag tag-loc" title="Lines of Code">
                       📝 {proj.lines_of_code.toLocaleString()} LOC
                     </span>
                   )}
                   {proj.tokens_spent > 0 && (
-                    <span className="project-tag tag-tokens">
+                    <span className="project-tag tag-tokens" title="Tokens Spent Building">
                       🪙 {proj.tokens_spent.toLocaleString()}
                     </span>
+                  )}
+                  {hasPromptTxt && (
+                    <button
+                      type="button"
+                      className="project-tag tag-prompt tag-action-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onOpenMasterPrompt?.(proj)
+                      }}
+                      title="View prompt.txt history"
+                    >
+                      📋 Prompt
+                    </button>
                   )}
                 </div>
               </div>
