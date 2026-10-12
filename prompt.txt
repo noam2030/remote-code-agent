@@ -120,3 +120,9 @@ Error: Process completed with exit code 1.
 114. remove DEFAULT_SKILLS_REPO_URL, FALLBACK_SKILLS
 115. confirm
 116. merge
+117. add a botton to view the loaded skill
+118. confirm
+119. rerty
+120. retry
+121. retry
+122. merge

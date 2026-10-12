@@ -3,11 +3,12 @@ import {
   generateCodeStream,
   getActiveRun,
   getFileContent,
+  getLoadedSkills,
   getProject,
   listProjects,
   streamActiveRun,
 } from './services/api'
-import type { FileContentResponse, Project } from './types'
+import type { FileContentResponse, LoadedSkillsResponse, Project } from './types'
 
 import { FilesDrawer } from './components/FilesDrawer'
 import { FileViewerModal } from './components/FileViewerModal'
@@ -15,6 +16,7 @@ import { Header } from './components/Header'
 import { MasterPromptModal } from './components/MasterPromptModal'
 import { PromptEditor } from './components/PromptEditor'
 import { Sidebar } from './components/Sidebar'
+import { SkillsModal } from './components/SkillsModal'
 import { TerminalStream } from './components/TerminalStream'
 
 export function App() {
@@ -31,6 +33,9 @@ export function App() {
   const [loadingFile, setLoadingFile] = useState(false)
   const [masterPromptFile, setMasterPromptFile] = useState<FileContentResponse | null>(null)
   const [loadingMasterPrompt, setLoadingMasterPrompt] = useState(false)
+  const [skillsModalOpen, setSkillsModalOpen] = useState(false)
+  const [skillsData, setSkillsData] = useState<LoadedSkillsResponse | null>(null)
+  const [loadingSkills, setLoadingSkills] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   const showToast = (msg: string) => {
@@ -65,10 +70,32 @@ export function App() {
     }
   }
 
+  const fetchSkills = async () => {
+    setLoadingSkills(true)
+    try {
+      const data = await getLoadedSkills()
+      setSkillsData(data)
+      return data
+    } catch (err: any) {
+      console.error('Failed to load skills:', err)
+      return null
+    } finally {
+      setLoadingSkills(false)
+    }
+  }
+
+  const handleOpenSkills = () => {
+    setSkillsModalOpen(true)
+    if (!skillsData) {
+      fetchSkills()
+    }
+  }
+
   useEffect(() => {
     let isCancelled = false
 
     const init = async () => {
+      fetchSkills()
       setLoadingProjects(true)
       let data: Project[] = []
       try {
@@ -401,7 +428,10 @@ function isContinuationPrompt(prompt: string): boolean {
     <div className="app-layout">
       {toastMessage && <div className="app-toast">{toastMessage}</div>}
 
-      <Header />
+      <Header
+        onOpenSkills={handleOpenSkills}
+        skillsCount={skillsData?.skills_count ?? 0}
+      />
 
       <nav className="mobile-view-tabs" aria-label="Mobile View Navigation">
         <button
@@ -464,6 +494,14 @@ function isContinuationPrompt(prompt: string): boolean {
         promptFile={masterPromptFile}
         loading={loadingMasterPrompt}
         onClose={() => setMasterPromptFile(null)}
+      />
+
+      <SkillsModal
+        isOpen={skillsModalOpen}
+        skillsData={skillsData}
+        loading={loadingSkills}
+        onClose={() => setSkillsModalOpen(false)}
+        onRefresh={fetchSkills}
       />
     </div>
   )

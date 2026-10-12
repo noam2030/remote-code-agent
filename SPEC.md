@@ -84,6 +84,10 @@ The service is deployed on Google Cloud Run under project `ai-learning-499409`.
     - Drawer and modal actions: Direct action to toggle the project files drawer and direct action to view the master prompt (`prompt.txt`).
   - On-demand file explorer drawer allows opening and inspecting source files and master prompt history (`prompt.txt`).
 - **Terminal & Log Viewer**: Real-time console view rendering color-coded output from backend SSE streams during code generation, testing, branching, pull request creation, and squash-merging. Supports replaying buffered logs for newly attached clients.
+- **Loaded Skills Inspection & Viewer Modal**:
+  - The application header navigation bar provides an interactive `🧠 Skills` action button indicating the count of dynamically loaded agent skills.
+  - Clicking the button opens the `SkillsModal` dialog, allowing users to view and inspect all dynamically loaded skills (`development-workflow`, `project-specification`, etc.) without needing them stored locally in the project repository.
+  - The modal provides tabbed switching across loaded skills, a copy action to copy the full markdown content to the clipboard, a direct link to the remote skills source repository on GitHub, and line-numbered formatting consistent with the application's code viewer modals.
 - **Fixed Viewport & Independent Pane Scrolling**:
   - The application desktop and mobile layouts adapt dynamically to viewport height (`100vh` and `100dvh`) with zero document-level page overflow.
   - The left sidebar fills the viewport height below the header with its header and search input fixed in place, while only the project items list (`.project-list`) scrolls vertically with native touch scrolling and ample bottom padding.
@@ -154,12 +158,12 @@ The backend is structured under `backend/src/remote_code_agent`:
   - Pushes feature branches and opens Pull Requests dynamically targeting the repository's default branch (`gh pr create`), without direct-push-to-main fallbacks.
   - Merges Pull Requests via squash-merge (`gh pr merge --squash --delete-branch --admin`) and syncs `main`.
   - Automatically provisions deployment secrets (`GCP_SA_KEY`, `VERCEL_TOKEN`) from the backend environment to target repositories via `gh secret set`.
-- `server.py`: FastAPI application factory with CORS middleware and error handling.
+- `server.py`: FastAPI application factory with lifespan startup handler to trigger dynamic skills loading on boot, CORS middleware, `GET /api/skills` endpoint exposing loaded skills content, and error handling.
 
 ## 7. Frontend
 The frontend is structured under `frontend/`:
-- `src/components/`: Reusable UI modules including `Header`, `Sidebar` (hosting complete project details, stats, deployment links, and direct file/prompt drawer actions), `FilesDrawer`, `TerminalStream`, `PromptEditor` (clean prompt input with focused suggestion chips `✅ Confirm Plan`, `🔀 Merge Pull Request`, `🎨 Modernize UI`, `🚀 Deploy Workflows`), and modal dialogs. Clicking `✅ Confirm Plan` or `🔀 Merge Pull Request` immediately submits the pair-programming action.
-- `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints, active run retrieval (`getActiveRun`), and streaming endpoints (`streamActiveRun`, `generateCodeStream` supporting character `offset` query parameter).
+- `src/components/`: Reusable UI modules including `Header` (with `🧠 Skills` viewer trigger), `SkillsModal` (tabbed modal viewing dynamically loaded skill documents and markdown with copy and source link actions), `Sidebar` (hosting complete project details, stats, deployment links, and direct file/prompt drawer actions), `FilesDrawer`, `TerminalStream`, `PromptEditor` (clean prompt input with focused suggestion chips `✅ Confirm Plan`, `🔀 Merge Pull Request`, `🎨 Modernize UI`, `🚀 Deploy Workflows`), and modal dialogs. Clicking `✅ Confirm Plan` or `🔀 Merge Pull Request` immediately submits the pair-programming action.
+- `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints, skills retrieval (`getLoadedSkills`), active run retrieval (`getActiveRun`), and streaming endpoints (`streamActiveRun`, `generateCodeStream` supporting character `offset` query parameter).
 - `src/types/`: Interfaces for projects, generation events, active runs, file trees, and system status.
 - `src/App.tsx`: Top-level application state orchestrator, handling project creation persistence, active project selection with case-insensitivity, active run auto-detection and re-connection on mount, seamless mobile handover, mobile view switching (`⚡ Live Console` / `📁 Projects`), ongoing stream continuation (preserves `streamLogs` and passes `offset` for `confirm` and `merge` actions instead of clearing the console), non-blocking stream lifecycle with background poll fallback, and code generation streaming.
 - `src/index.css`: Global styles, dynamic viewport height sizing (`100vh` and `100dvh`), flex-constrained independent scrolling containers, mobile navigation tab styles, touch-friendly scroll physics (`touch-action: pan-y; -webkit-overflow-scrolling: touch`), and safe-area bottom padding ensuring the full project catalog scrolls smoothly to the last item on mobile without lockups.
@@ -215,6 +219,7 @@ The frontend is structured under `frontend/`:
 
 ## 9. API
 - `GET /api/health`: Health status endpoint returning status code 200 and system health metadata.
+- `GET /api/skills`: Retrieve all dynamically loaded skills mapping skill names to their full markdown contents, remote source repository URL (`skills_source`), and total skill count.
 - `GET /api/projects`: List all user GitHub repositories dynamically as a direct reflection of GitHub.
 - `GET /api/projects/{project_name}`: Retrieve project details, file list, stats, and README (syncing/cloning from GitHub into `workspace/<project_name>` if needed).
 - `GET /api/projects/{name}/files/{file_path}`: Retrieve content and metadata for a specific file in a project.
@@ -256,7 +261,7 @@ The application relies on the following environment variables:
   - `test_intent_service.py`: Classification of user prompts (info retrieval, confirmation requests, merge requests, code mutation requests).
   - `test_project_service.py`: GitHub repository catalog discovery, most-recently-updated ordering matching GitHub, workspace scanning, dedicated repo sync, and cleanup.
   - `test_prompt_service.py`: `prompt.txt` manipulation.
-  - `test_server.py`: FastAPI application startup and CORS verification.
+  - `test_server.py`: FastAPI application startup, CORS verification, root metadata, and `GET /api/skills` endpoint verification.
   - `test_ci_workflows.py`: Verification of CI/CD workflow definitions, trigger configurations, and security secret requirements.
 
 ## 12. Deployment

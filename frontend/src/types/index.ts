@@ -54,3 +54,11 @@ export interface ActiveRunResponse {
   completed_at: number | null
 }
 
+export interface LoadedSkillsResponse {
+  status: string
+  skills_source: string
+  skills_count: number
+  skill_names: string[]
+  skills: Record<string, string>
+}
+

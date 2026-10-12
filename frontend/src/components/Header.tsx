@@ -1,7 +1,12 @@
 import React from 'react'
 import { getBackendUrl } from '../services/api'
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  onOpenSkills?: () => void
+  skillsCount?: number
+}
+
+export const Header: React.FC<HeaderProps> = ({ onOpenSkills, skillsCount }) => {
   const backendBase = getBackendUrl() || 'https://remote-code-agent-289332143182.us-central1.run.app'
   const docsUrl = `${backendBase}/docs`
 
@@ -22,6 +27,15 @@ export const Header: React.FC = () => {
           <span className="status-text-full">Connected to Agent</span>
           <span className="status-text-short">Connected</span>
         </div>
+        <button
+          type="button"
+          onClick={onOpenSkills}
+          className="nav-btn"
+          title="View dynamically loaded agent skills"
+        >
+          🧠 <span className="nav-btn-text-full">Skills{skillsCount !== undefined && skillsCount > 0 ? ` (${skillsCount})` : ''}</span>
+          <span className="nav-btn-text-short">Skills</span>
+        </button>
         <a
           href="https://github.com/noam2030"
           target="_blank"

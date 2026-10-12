@@ -1,4 +1,10 @@
-import type { ActiveRunResponse, FileContentResponse, Project, ProjectDetail } from '../types'
+import type {
+  ActiveRunResponse,
+  FileContentResponse,
+  LoadedSkillsResponse,
+  Project,
+  ProjectDetail,
+} from '../types'
 
 
 const STORAGE_KEY_BACKEND = 'rca_backend_url'
@@ -180,6 +186,14 @@ export async function streamActiveRun(
       onChunk(filtered)
     }
   }
+}
+
+export async function getLoadedSkills(): Promise<LoadedSkillsResponse> {
+  const res = await fetch(resolveUrl('/api/skills'))
+  if (!res.ok) {
+    throw new Error(`Failed to fetch loaded skills: HTTP ${res.status}`)
+  }
+  return res.json()
 }
 
 
