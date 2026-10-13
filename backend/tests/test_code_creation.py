@@ -1,4 +1,5 @@
 import unittest
+import asyncio
 import os
 import sys
 import shutil
@@ -287,6 +288,55 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             second_call_args = mock_exec.call_args_list[1][0]
             self.assertIn("--continue", first_call_args)
             self.assertNotIn("--continue", second_call_args)
+
+    async def test_execute_agy_cli_timeout_handling(self):
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError())
+
+        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=mock_proc)):
+            code, stdout, stderr = await execute_agy_cli(
+                prompt="long job",
+                project_dir="/workspace/hello-test",
+                timeout=0.01,
+            )
+            self.assertEqual(code, 124)
+            self.assertIn("Execution Timeout", stderr)
+            mock_proc.terminate.assert_called_once()
+
+    async def test_execute_agy_cli_calls_on_chunk_and_proc_callback(self):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"Live stream line\n", b""))
+
+        chunks = []
+        captured_procs = []
+
+        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=mock_proc)):
+            code, stdout, stderr = await execute_agy_cli(
+                prompt="test chunk",
+                project_dir="/workspace/hello-test",
+                on_chunk=lambda c: chunks.append(c),
+                proc_callback=lambda p: captured_procs.append(p),
+            )
+            self.assertEqual(code, 0)
+            self.assertEqual(chunks, ["Live stream line\n"])
+            self.assertEqual(captured_procs, [mock_proc])
+
+    async def test_generate_code_stream_autoroutes_to_detected_project(self):
+        with patch("remote_code_agent.services.code_creation.list_projects", return_value=[{"name": "hello-world-app"}, {"name": "remote-code-agent"}]), \
+             patch("remote_code_agent.services.code_creation.execute_agy_cli", AsyncMock(return_value=(0, "Added web server", ""))) as mock_cli, \
+             patch("remote_code_agent.services.code_creation.append_numbered_prompt"), \
+             patch("remote_code_agent.services.code_creation.inspect_project_files", return_value=([], 10)):
+            output = []
+            async for chunk in generate_code_stream(
+                prompt="now add very very very small webapplication to serve this hello world app.",
+                project_name="remote-code-agent",
+            ):
+                output.append(chunk)
+
+            called_project_dir = mock_cli.call_args[1]["project_dir"]
+            self.assertTrue(called_project_dir.endswith("hello-world-app"))
 
 
 if __name__ == "__main__":

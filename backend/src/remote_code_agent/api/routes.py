@@ -86,6 +86,27 @@ async def api_stream_active_run(
     )
 
 
+@router.post("/runs/cancel")
+async def api_cancel_active_run():
+    """Cancels the currently active run, terminating subprocess and freeing server."""
+    cancelled = await run_manager.cancel_run()
+    if not cancelled:
+        raise HTTPException(status_code=400, detail="No active run to cancel or cancellation failed.")
+    return run_manager.get_active_run()
+
+
+@router.post("/runs/{run_id}/cancel")
+async def api_cancel_run_by_id(run_id: str):
+    """Cancels a specific run by ID, terminating subprocess and freeing server."""
+    cancelled = await run_manager.cancel_run(run_id=run_id)
+    if not cancelled:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Run '{run_id}' is not active or cancellation failed.",
+        )
+    return run_manager.get_active_run()
+
+
 @router.get("/generate")
 async def api_generate_get(
     prompt: str = Query(..., description="Prompt describing the application to generate"),

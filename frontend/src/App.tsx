@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
+  cancelActiveRun,
   generateCodeStream,
   getActiveRun,
   getFileContent,
@@ -370,9 +371,31 @@ export function App() {
     setFilesDrawerOpen(true)
   }
 
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  const handleCancel = async () => {
+    try {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+      showToast('Stopping running execution...')
+      await cancelActiveRun()
+      showToast('Execution stopped by user.')
+    } catch (err: any) {
+      showToast(`Cancel notice: ${err.message}`)
+    } finally {
+      setIsGenerating(false)
+      fetchProjects()
+    }
+  }
+
   const handleGenerate = async (prompt: string, targetProject?: string) => {
     setMobileTab('console')
     setIsGenerating(true)
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     const currentOffset = streamLogs.length
     showToast('Executing agy CLI on remote container...')
@@ -384,15 +407,19 @@ export function App() {
         (chunk) => {
           setStreamLogs((prev) => prev + chunk)
         },
-        undefined,
+        controller.signal,
         currentOffset
       )
       showToast('agy CLI execution finished!')
       await fetchProjects()
     } catch (err: any) {
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+        return
+      }
       setStreamLogs((prev) => prev + `\n\n❌ Error: ${err.message}\n`)
       showToast(`Execution error: ${err.message}`)
     } finally {
+      abortControllerRef.current = null
       setIsGenerating(false)
     }
   }
@@ -447,12 +474,14 @@ export function App() {
             selectedProject={selectedProject}
             isGenerating={isGenerating}
             onSubmit={handleGenerate}
+            onCancel={handleCancel}
           />
 
           <TerminalStream
             logs={streamLogs}
             isGenerating={isGenerating}
             onClear={() => setStreamLogs('')}
+            onCancel={handleCancel}
           />
         </section>
       </main>
