@@ -149,3 +149,4 @@ Error: Process completed with exit code 1.
 143. i want to have one output for a session. righ now i am writing command, for example implemnet a, then get output. then i pormt great, publish it. but i see in the console only the last command. i want to see all. i want that the agent will know that the new promt is related to the same session, and he sould pusblish the previous written code
 144. retry
 145. confirm
+146. merge
