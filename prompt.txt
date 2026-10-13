@@ -126,3 +126,8 @@ Error: Process completed with exit code 1.
 120. retry
 121. retry
 122. merge
+123. i want to change the core implementation. i want that the actual remote code agent will be agy cli pre-installed in the docer. i will write a prompt in the ui, and the web application will call the cli with this pprompt. when the cli finish only then i will ge the reposne.
+124. how the cli will authenticate?
+125. what do you mean? Docker Pre-installation (Dockerfile & backend/Dockerfile) why &
+126. what will happen when i detach from the web app while it is running, and then connect to my web app from phone?
+127. confirm

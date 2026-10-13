@@ -2,8 +2,9 @@ import unittest
 import os
 import sys
 import shutil
+from unittest.mock import AsyncMock, MagicMock, patch
 
-# Ensure src/ is discoverable even without package installation
+# Ensure src/ is discoverable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from google.antigravity import types
@@ -13,6 +14,7 @@ from remote_code_agent.code_creation import (
     format_stream_chunk,
     get_agent_config,
     get_info_retrieval_agent_config,
+    execute_agy_cli,
     generate_code_stream,
     create_code_stream,
 )
@@ -22,7 +24,7 @@ from remote_code_agent.github_service import derive_project_slug
 
 class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
-        test_dirs = ["test-unit", "test-unit-custom", "test-info-dir", "weather-test", "remote-target-repo"]
+        test_dirs = ["test-unit", "test-unit-custom", "test-info-dir", "weather-test", "remote-target-repo", "hello-test"]
         for d in test_dirs:
             p = os.path.join(BASE_WORKSPACE, d)
             if os.path.exists(p):
@@ -51,139 +53,84 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
         slug = derive_project_slug("Create a web scraper named scraper_pro")
         self.assertTrue(slug.startswith("scraper-pro-"))
 
-    def test_agent_config(self):
-        test_dir = os.path.join(BASE_WORKSPACE, "test-unit")
-        config = get_agent_config(test_dir)
-        self.assertIn(test_dir, config.workspaces)
-        self.assertIn("Google Cloud Run", config.system_instructions)
-        self.assertIn("$PORT", config.system_instructions)
-        self.assertIn("Google Cloud Firestore", config.system_instructions)
-        self.assertIn("collection", config.system_instructions)
-        self.assertIn("Do NOT create virtual environments", config.system_instructions)
-        self.assertIn("Do NOT run git or gh commands", config.system_instructions)
-
-        self.assertIn("PORT is a reserved environment variable automatically injected by Cloud Run", config.system_instructions)
-        self.assertIn("--port 8080", config.system_instructions)
-        self.assertIn("MANDATORY SOURCE TYPE DEPLOYMENT", config.system_instructions)
-        self.assertIn("--source .", config.system_instructions)
-        self.assertIn("NEVER build docker images locally in GitHub Actions", config.system_instructions)
-
-        # Development workflow and project specification skills
-        self.assertIn("development-workflow", config.system_instructions)
-        self.assertIn("project-specification", config.system_instructions)
-        self.assertIn("SPEC.md", config.system_instructions)
-        self.assertIn("## 1. Overview", config.system_instructions)
-        self.assertIn("## 12. Deployment", config.system_instructions)
-        self.assertIn("Spec First, Then Code", config.system_instructions)
-        self.assertIn("Code as a Reflection of the Spec File", config.system_instructions)
-
-    def test_agent_config_with_app_name(self):
-        test_dir = os.path.join(BASE_WORKSPACE, "test-unit-custom")
-        config = get_agent_config(test_dir, app_name="custom-project-name")
-        self.assertIn("custom-project-name", config.system_instructions)
-        self.assertIn("custom-project-name-api", config.system_instructions)
-        self.assertIn("custom-project-name-ui", config.system_instructions)
-        self.assertIn("Google Cloud Run", config.system_instructions)
-        self.assertIn("MANDATORY SOURCE TYPE DEPLOYMENT", config.system_instructions)
-        self.assertIn("PORT is a reserved environment variable automatically injected by Cloud Run", config.system_instructions)
-        self.assertIn("Google Cloud Firestore", config.system_instructions)
-        self.assertIn("ai-learning-499409", config.system_instructions)
-        self.assertIn("noam-projects2", config.system_instructions)
-
-        # Development workflow and project specification skills
-        self.assertIn("development-workflow", config.system_instructions)
-        self.assertIn("project-specification", config.system_instructions)
-        self.assertIn("SPEC.md", config.system_instructions)
-        self.assertIn("## 1. Overview", config.system_instructions)
-        self.assertIn("## 12. Deployment", config.system_instructions)
-
     def test_code_generator_alias(self):
         self.assertIs(code_generator.generate_code_stream, generate_code_stream)
         self.assertIs(code_generator.create_code_stream, create_code_stream)
 
-    async def test_generate_code_stream_planning_mode(self):
-        from unittest.mock import AsyncMock, MagicMock, patch
+    async def test_execute_agy_cli_success(self):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"Success: Code written and tests pass", b""))
 
-        class MockAgentCM:
-            def __init__(self, config):
-                self.config = config
-            async def __aenter__(self):
-                mock_agent = AsyncMock()
-                mock_resp = MagicMock()
-                mock_resp.usage_metadata = None
-                async def plan_chunks():
-                    yield types.Text(step_index=0, text="Here is the planned implementation. Confirm?")
-                mock_resp.chunks = plan_chunks()
-                mock_agent.chat.return_value = mock_resp
-                return mock_agent
-            async def __aexit__(self, exc_type, exc_val, exc_tb):
-                pass
+        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=mock_proc)) as mock_exec:
+            code, stdout, stderr = await execute_agy_cli(
+                prompt="Add unit tests",
+                project_dir="/workspace/hello-test",
+                continue_session=False,
+            )
 
-        with patch("remote_code_agent.services.code_creation.Agent", MockAgentCM):
+            mock_exec.assert_called_once()
+            called_args = mock_exec.call_args[0]
+            self.assertIn("-p", called_args)
+            self.assertIn("Add unit tests", called_args)
+            self.assertIn("--dangerously-skip-permissions", called_args)
+            self.assertEqual(mock_exec.call_args[1]["cwd"], "/workspace/hello-test")
+            self.assertEqual(code, 0)
+            self.assertIn("Success: Code written", stdout)
+            self.assertEqual(stderr, "")
+
+    async def test_execute_agy_cli_continue_session(self):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"Resumed session output", b""))
+
+        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=mock_proc)) as mock_exec:
+            code, stdout, stderr = await execute_agy_cli(
+                prompt="confirm",
+                project_dir="/workspace/hello-test",
+                continue_session=True,
+            )
+
+            called_args = mock_exec.call_args[0]
+            self.assertIn("--continue", called_args)
+            self.assertIn("-p", called_args)
+            self.assertEqual(code, 0)
+            self.assertEqual(stdout, "Resumed session output")
+
+    async def test_execute_agy_cli_not_found(self):
+        with patch("asyncio.create_subprocess_exec", AsyncMock(side_effect=FileNotFoundError("not found"))):
+            code, stdout, stderr = await execute_agy_cli(
+                prompt="test",
+                project_dir="/workspace/hello-test",
+            )
+            self.assertEqual(code, 127)
+            self.assertIn("not found on system PATH", stderr)
+
+    async def test_generate_code_stream_runs_cli_and_delivers_response(self):
+        mock_cli = AsyncMock(return_value=(0, "Implemented FastAPI endpoints for weather service.", ""))
+
+        with patch("remote_code_agent.services.code_creation.execute_agy_cli", mock_cli):
             chunks = []
             async for chunk in generate_code_stream("Build a weather app", project_name="weather-test"):
                 chunks.append(chunk)
 
+            mock_cli.assert_called_once()
+            self.assertEqual(mock_cli.call_args[1]["prompt"], "Build a weather app")
+            self.assertFalse(mock_cli.call_args[1]["continue_session"])
+
             output = "".join(chunks)
-            self.assertIn("Planning Mode", output)
-            self.assertIn("Confirm?", output)
-            self.assertIn("Dedicated feature branch: 'feature/", output)
+            self.assertIn("Implemented FastAPI endpoints for weather service.", output)
+            self.assertIn("Project Stats", output)
+            self.assertIn("weather-test", output)
 
-    async def test_generate_code_stream_execution_on_confirm(self):
-        from unittest.mock import AsyncMock, MagicMock, patch
-
-        mock_ensure_main = MagicMock(return_value=True)
-        mock_pr = MagicMock(return_value=(True, "PR created", "https://github.com/testuser/weather-test/pull/1"))
-        captured_agent = None
-
-        class MockAgentCM:
-            def __init__(self, config):
-                pass
-            async def __aenter__(self):
-                nonlocal captured_agent
-                mock_agent = AsyncMock()
-                mock_resp = MagicMock()
-                mock_meta = MagicMock()
-                mock_meta.prompt_token_count = 50
-                mock_meta.candidates_token_count = 50
-                mock_meta.total_token_count = 100
-                mock_resp.usage_metadata = mock_meta
-                async def empty_chunks():
-                    if False:
-                        yield None
-                mock_resp.chunks = empty_chunks()
-                mock_agent.chat.return_value = mock_resp
-                captured_agent = mock_agent
-                return mock_agent
-            async def __aexit__(self, exc_type, exc_val, exc_tb):
-                pass
-
-        with patch("remote_code_agent.services.code_creation.ensure_remote_repo_and_main", mock_ensure_main), \
-             patch("remote_code_agent.services.code_creation.Agent", MockAgentCM), \
-             patch("remote_code_agent.services.code_creation.push_feature_branch_and_create_pr", mock_pr):
-
-            chunks = []
-            async for chunk in generate_code_stream("confirm", project_name="weather-test"):
-                chunks.append(chunk)
-
-            mock_ensure_main.assert_called_once()
-            mock_pr.assert_called_once()
-            output = "".join(chunks)
-            self.assertIn("Execution Mode", output)
-            self.assertIn("Pull Request Created", output)
-            self.assertIn("https://github.com/testuser/weather-test/pull/1", output)
-            self.assertIn("Review & Merge Approval", output)
-
-            # Verify agent was invoked with spec-first prompt discipline
-            self.assertIsNotNone(captured_agent)
-            chat_prompt = captured_agent.chat.call_args[0][0]
-            self.assertIn("Spec First, Then Code", chat_prompt)
-            self.assertIn("all sections 1 to 12", chat_prompt)
-            self.assertIn("Code as a Reflection of the Spec File", chat_prompt)
+            # Check prompt was appended
+            prompt_file = os.path.join(BASE_WORKSPACE, "weather-test", "prompt.txt")
+            self.assertTrue(os.path.isfile(prompt_file))
+            with open(prompt_file) as f:
+                content = f.read()
+                self.assertIn("Build a weather app", content)
 
     async def test_generate_code_stream_merge_mode(self):
-        from unittest.mock import MagicMock, patch
-
         mock_merge = MagicMock(return_value=(True, "Pull Request successfully squash-merged into main"))
 
         with patch("remote_code_agent.services.code_creation.merge_pull_request", mock_merge):
@@ -193,103 +140,25 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
 
             mock_merge.assert_called_once()
             output = "".join(chunks)
-            self.assertIn("Merge Pull Request", output)
             self.assertIn("Pull Request Merged", output)
             self.assertIn("CI/CD Deployment", output)
 
-    def test_info_retrieval_agent_config(self):
-        test_dir = os.path.join(BASE_WORKSPACE, "test-info-dir")
-        config = get_info_retrieval_agent_config(test_dir, app_name="test-info-app")
-        self.assertIn("test-info-app", config.system_instructions)
-        self.assertIn("Do NOT create, write, modify, or delete any files", config.system_instructions)
-        self.assertIn("Do NOT write code to disk", config.system_instructions)
-        self.assertIn(test_dir, config.workspaces)
-
-    async def test_generate_code_stream_info_retrieval_mode_no_github_publish(self):
-        from unittest.mock import AsyncMock, MagicMock, patch
-
-        mock_update = AsyncMock()
-        mock_publish = MagicMock(return_value=(True, "https://github.com/test"))
-
-        class MockAgentCM:
-            def __init__(self, config):
-                self.config = config
-            async def __aenter__(self):
-                mock_agent = AsyncMock()
-                mock_resp = MagicMock()
-                mock_meta = MagicMock()
-                mock_meta.prompt_token_count = 20
-                mock_meta.candidates_token_count = 30
-                mock_meta.total_token_count = 50
-                mock_resp.usage_metadata = mock_meta
-                async def text_chunks():
-                    yield types.Text(step_index=0, text="This project is a FastAPI service.")
-                mock_resp.chunks = text_chunks()
-                mock_agent.chat.return_value = mock_resp
-                return mock_agent
-            async def __aexit__(self, exc_type, exc_val, exc_tb):
-                pass
-
-        with patch("remote_code_agent.services.code_creation.update_project_master_prompt", mock_update), \
-             patch("remote_code_agent.services.code_creation.Agent", MockAgentCM), \
-             patch("remote_code_agent.services.code_creation.publish_project_to_github", mock_publish):
-
-            chunks = []
-            async for chunk in generate_code_stream("What does this project do?", project_name="weather-test"):
-                chunks.append(chunk)
-
-            # Assert prompt.txt is NOT updated during info retrieval
-            mock_update.assert_not_called()
-            # Assert GitHub publish is NOT called during info retrieval
-            mock_publish.assert_not_called()
-
-            output = "".join(chunks)
-            self.assertIn("Information Retrieval", output)
-            self.assertIn("This project is a FastAPI service.", output)
-            self.assertIn("No code changes were made or published to GitHub", output)
-            self.assertNotIn("Publishing generated code to project", output)
-
     async def test_generate_code_stream_syncs_from_github_if_not_local(self):
-        from unittest.mock import AsyncMock, MagicMock, patch
-
         mock_sync = MagicMock(return_value=True)
-        mock_ensure_main = MagicMock(return_value=True)
-        mock_pr = MagicMock(return_value=(True, "PR created", "https://github.com/noam2030/remote-target-repo/pull/1"))
-
-        class MockAgentCM:
-            def __init__(self, config):
-                self.config = config
-            async def __aenter__(self):
-                mock_agent = AsyncMock()
-                mock_resp = MagicMock()
-                mock_resp.usage_metadata = None
-                async def text_chunks():
-                    yield types.Text(step_index=0, text="Code implemented.")
-                mock_resp.chunks = text_chunks()
-                mock_agent.chat.return_value = mock_resp
-                return mock_agent
-            async def __aexit__(self, exc_type, exc_val, exc_tb):
-                pass
+        mock_cli = AsyncMock(return_value=(0, "Code implemented.", ""))
 
         with patch("remote_code_agent.services.code_creation.sync_project_from_github", mock_sync), \
-             patch("remote_code_agent.services.code_creation.ensure_remote_repo_and_main", mock_ensure_main), \
-             patch("remote_code_agent.services.code_creation.Agent", MockAgentCM), \
-             patch("remote_code_agent.services.code_creation.push_feature_branch_and_create_pr", mock_pr):
+             patch("remote_code_agent.services.code_creation.execute_agy_cli", mock_cli):
 
             chunks = []
-            async for chunk in generate_code_stream("confirm", project_name="remote-target-repo"):
+            async for chunk in generate_code_stream("create a hello api", project_name="remote-target-repo"):
                 chunks.append(chunk)
 
             output = "".join(chunks)
             mock_sync.assert_called_once()
-            mock_pr.assert_called_once()
-            self.assertIn("remote-target-repo", output)
-            self.assertIn("Cloned repository into workspace from GitHub", output)
+            mock_cli.assert_called_once()
+            self.assertIn("Code implemented.", output)
 
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
-

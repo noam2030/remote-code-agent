@@ -41,9 +41,17 @@ def load_env_file(dotenv_path: str | Path | None = None) -> None:
 # Automatically load on import
 load_env_file()
 
+import shutil
+
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GH_TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
+AGY_CLI_PATH = (
+    os.environ.get("AGY_CLI_PATH")
+    or shutil.which("agy")
+    or "/usr/local/bin/agy"
+)
 AGENT_WORKSPACE = os.environ.get("AGENT_WORKSPACE", "workspace")
+
 SKILLS_REPO_URL = os.environ.get(
     "SKILLS_REPO_URL",
     "https://github.com/noam2030/build-with-agent/tree/main/.agents/skills",
