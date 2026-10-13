@@ -50,6 +50,31 @@ AGY_CLI_PATH = (
     or shutil.which("agy")
     or "/usr/local/bin/agy"
 )
+AGY_OAUTH_TOKEN = os.environ.get("AGY_OAUTH_TOKEN") or os.environ.get("JETSKI_OAUTH_TOKEN", "")
+
+
+def ensure_agy_oauth_token() -> bool:
+    """Ensures ~/.gemini/jetski-standalone-oauth-token exists.
+
+    If AGY_OAUTH_TOKEN environment variable is set, writes it to
+    ~/.gemini/jetski-standalone-oauth-token with 0600 permissions.
+    Returns True if the token file exists and is populated, False otherwise.
+    """
+    token_path = Path.home() / ".gemini" / "jetski-standalone-oauth-token"
+    if AGY_OAUTH_TOKEN and AGY_OAUTH_TOKEN.strip():
+        try:
+            token_path.parent.mkdir(parents=True, exist_ok=True)
+            token_path.write_text(AGY_OAUTH_TOKEN.strip(), encoding="utf-8")
+            token_path.chmod(0o600)
+            return True
+        except Exception:
+            pass
+    return token_path.is_file() and token_path.stat().st_size > 0
+
+
+# Ensure token file is populated if env var is available
+ensure_agy_oauth_token()
+
 AGENT_WORKSPACE = os.environ.get("AGENT_WORKSPACE", "workspace")
 
 SKILLS_REPO_URL = os.environ.get(

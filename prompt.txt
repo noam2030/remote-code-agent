@@ -133,3 +133,5 @@ Error: Process completed with exit code 1.
 127. confirm
 128. where is the actual query to agy cli in your feature branch code?
 129. merge
+130. i am getting this error: ⚠️ [agy CLI Exit 1]: Authentication required. Please visit the URL to log in: https://accounts.google.com/o/oauth2/auth?...
+131. (Recommended) Inject/mount the Antigravity OAuth token (AGY_OAUTH_TOKEN / ~/.gemini/jetski-standalone-oauth-token) into the container environment.
