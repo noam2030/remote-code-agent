@@ -250,6 +250,34 @@ class TestRunManager(unittest.IsolatedAsyncioTestCase):
         self.assertIn("💬 [User] merge", combined_logs)
         self.assertIn("🎉 Pull Request Merged!", combined_logs)
 
+    async def test_arbitrary_followup_prompt_inherits_prior_logs_for_same_project(self):
+        async def turn1_gen(prompt, project_name=None):
+            yield "Generated component A successfully.\n"
+
+        async def turn2_gen(prompt, project_name=None):
+            yield "Publishing code to GitHub repository.\n"
+
+        # Turn 1: implement a
+        run1 = self.manager.start_run(
+            prompt="implement a",
+            project_name="my-app",
+            generator_fn=turn1_gen,
+        )
+        await run1.task
+
+        # Turn 2: arbitrary follow-up (e.g. "great, publish it")
+        run2 = self.manager.start_run(
+            prompt="great, publish it",
+            project_name="my-app",
+            generator_fn=turn2_gen,
+        )
+        await run2.task
+
+        combined_logs = "".join(run2.logs)
+        self.assertIn("Generated component A successfully.", combined_logs)
+        self.assertIn("💬 [User] great, publish it", combined_logs)
+        self.assertIn("Publishing code to GitHub repository.", combined_logs)
+
     async def test_new_feature_does_not_inherit_prior_logs(self):
         async def gen1(prompt, project_name=None):
             yield "Weather app plan\n"

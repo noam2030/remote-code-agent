@@ -280,6 +280,14 @@ export function App() {
 
   const handleSelectProject = async (proj: Project | null) => {
     setMobileTab('console')
+    if (
+      proj &&
+      selectedProject &&
+      proj.name.toLowerCase() !== selectedProject.name.toLowerCase() &&
+      !isGenerating
+    ) {
+      setStreamLogs('')
+    }
     setSelectedProject(proj)
     if (proj && (proj.has_remote || proj.is_local || (proj.files_count ?? 0) > 0)) {
       try {
@@ -306,6 +314,7 @@ export function App() {
       return
     }
 
+    setStreamLogs('')
     const newProj: Project = {
       name: trimmed,
       cloud_run_url: null,
@@ -361,48 +370,12 @@ export function App() {
     setFilesDrawerOpen(true)
   }
 
-function isContinuationPrompt(prompt: string): boolean {
-  if (!prompt) return false
-  const clean = prompt.trim().toLowerCase().replace(/^["'`#]+|["'`#]+$/g, '')
-  const continuationWords = [
-    'confirm',
-    'confrim',
-    'confirmed',
-    'confirm plan',
-    'yes',
-    'proceed',
-    'approve',
-    'approved',
-    'go ahead',
-    'lgtm',
-    'looks good',
-    'ok',
-    'okay',
-    'retry',
-    'merge',
-    'merge pr',
-    'merge pull request',
-    'squash and merge',
-    'approve and merge',
-  ]
-  return continuationWords.some(
-    (word) => clean === word || clean.startsWith(word + ' ') || clean.startsWith(word + '.')
-  )
-}
-
   const handleGenerate = async (prompt: string, targetProject?: string) => {
     setMobileTab('console')
     setIsGenerating(true)
 
-    const isContinuation = isContinuationPrompt(prompt)
-    const currentOffset = isContinuation ? streamLogs.length : 0
-
-    if (!isContinuation) {
-      setStreamLogs('')
-      showToast('Executing agy CLI on remote container...')
-    } else {
-      showToast('Continuing agy CLI execution...')
-    }
+    const currentOffset = streamLogs.length
+    showToast('Executing agy CLI on remote container...')
 
     try {
       await generateCodeStream(
@@ -422,7 +395,6 @@ function isContinuationPrompt(prompt: string): boolean {
     } finally {
       setIsGenerating(false)
     }
-
   }
 
   return (

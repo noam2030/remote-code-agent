@@ -85,21 +85,13 @@ class RunManager:
             if not effective_project and self.current_run.project_name:
                 effective_project = self.current_run.project_name
 
-            # Inherit prior logs if this is a continuation (confirm / merge) for the same project
+            # Inherit prior logs across all sequential runs for the same project session
             if not req_proj or not curr_proj or curr_proj == req_proj:
-                try:
-                    from remote_code_agent.services.intent_service import (
-                        is_confirmation_request,
-                        is_merge_request,
-                    )
-                    if is_confirmation_request(prompt) or is_merge_request(prompt):
-                        prior_logs = list(self.current_run.logs)
-                        if prior_logs:
-                            if not "".join(prior_logs).endswith("\n"):
-                                prior_logs.append("\n")
-                            prior_logs.append(f"\n💬 [User] {prompt}\n\n")
-                except Exception:
-                    pass
+                if self.current_run.logs:
+                    prior_logs = list(self.current_run.logs)
+                    if not "".join(prior_logs).endswith("\n"):
+                        prior_logs.append("\n")
+                    prior_logs.append(f"\n💬 [User] {prompt}\n\n")
 
         run_id = str(uuid.uuid4())
         run = ActiveRun(
