@@ -338,6 +338,31 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             called_project_dir = mock_cli.call_args[1]["project_dir"]
             self.assertTrue(called_project_dir.endswith("hello-world-app"))
 
+    async def test_execute_agy_cli_drains_streams_without_hanging_on_orphan_daemon(self):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.wait = AsyncMock(return_value=0)
+
+        # Simulate reader that produces some text, then hangs indefinitely (e.g. orphan daemon holding pipe)
+        mock_stream = MagicMock()
+        async def slow_read(*args, **kwargs):
+            await asyncio.sleep(5.0)
+            return b""
+
+        mock_stream.read = AsyncMock(side_effect=[b"Output before exit\n", slow_read])
+        mock_proc.stdout = mock_stream
+        mock_proc.stderr = MagicMock()
+        mock_proc.stderr.read = AsyncMock(return_value=b"")
+
+        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=mock_proc)):
+            code, stdout, stderr = await execute_agy_cli(
+                prompt="test daemon hang",
+                project_dir="/workspace/hello-test",
+                timeout=10.0,
+            )
+            self.assertEqual(code, 0)
+            self.assertIn("Output before exit", stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

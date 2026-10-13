@@ -36,6 +36,12 @@ async def lifespan(app: FastAPI):
         )
     except Exception as e:
         logger.warning(f"Failed to load dynamic skills on startup: {e}")
+
+    try:
+        from remote_code_agent.github_service import ensure_git_config
+        ensure_git_config()
+    except Exception as e:
+        logger.warning(f"Failed to initialize git config on startup: {e}")
     yield
 
 

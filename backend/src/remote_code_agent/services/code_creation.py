@@ -5,6 +5,7 @@ import inspect
 import logging
 import os
 import shutil
+import signal
 from typing import AsyncGenerator, Callable
 
 import google.antigravity
@@ -27,8 +28,10 @@ from remote_code_agent.github_service import (
     create_or_checkout_branch,
     derive_feature_branch_name,
     derive_project_slug,
+    ensure_git_config,
     ensure_remote_repo_and_main,
     get_current_branch,
+    get_github_env,
     get_latest_feature_branch,
     merge_pull_request,
     publish_project_to_github,
@@ -148,6 +151,15 @@ async def execute_agy_cli(
         env["GITHUB_TOKEN"] = GH_TOKEN
     env.setdefault("HOME", os.path.expanduser("~"))
 
+    # Configure git author and GitHub CLI credentials helper for local-parity execution
+    try:
+        ensure_git_config(env)
+    except Exception:
+        pass
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GH_PROMPT_DISABLED"] = "1"
+    env["GIT_ASKPASS"] = "/bin/echo"
+
     current_path = env.get("PATH", "")
     for p in ["/usr/local/bin", os.path.expanduser("~/.local/bin"), "/usr/bin", "/bin"]:
         if p not in current_path.split(":"):
@@ -163,6 +175,7 @@ async def execute_agy_cli(
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
         )
         if proc_callback:
             try:
@@ -175,44 +188,62 @@ async def execute_agy_cli(
 
         is_real_stream = isinstance(proc.stdout, asyncio.StreamReader) or (
             proc.stdout is not None
-            and hasattr(proc.stdout, "readline")
-            and (asyncio.iscoroutinefunction(proc.stdout.readline) or inspect.iscoroutinefunction(proc.stdout.readline))
+            and hasattr(proc.stdout, "read")
+            and (asyncio.iscoroutinefunction(proc.stdout.read) or inspect.iscoroutinefunction(proc.stdout.read))
         )
 
         if is_real_stream:
             async def _read_stream(reader: asyncio.StreamReader | None, is_stderr: bool, target_list: list[str]):
                 if not reader:
                     return
-                while True:
-                    line_bytes = await reader.readline()
-                    if not line_bytes:
-                        break
-                    text = line_bytes.decode("utf-8", errors="replace")
-                    target_list.append(text)
-                    if on_chunk:
-                        try:
-                            on_chunk(text)
-                        except Exception:
-                            pass
+                try:
+                    while True:
+                        chunk_bytes = await reader.read(4096)
+                        if not chunk_bytes:
+                            break
+                        text = chunk_bytes.decode("utf-8", errors="replace")
+                        target_list.append(text)
+                        if on_chunk:
+                            try:
+                                on_chunk(text)
+                            except Exception:
+                                pass
+                except (asyncio.CancelledError, Exception):
+                    pass
 
             stdout_reader = asyncio.create_task(_read_stream(proc.stdout, False, stdout_lines))
             stderr_reader = asyncio.create_task(_read_stream(proc.stderr, True, stderr_lines))
 
             try:
-                await asyncio.wait_for(
-                    asyncio.gather(proc.wait(), stdout_reader, stderr_reader),
-                    timeout=timeout,
-                )
+                # Wait for the CLI process itself to complete
+                await asyncio.wait_for(proc.wait(), timeout=timeout)
+                # Bounded drain: allow up to 2 seconds to drain output buffers without hanging on orphan daemons
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(stdout_reader, stderr_reader),
+                        timeout=2.0,
+                    )
+                except (asyncio.TimeoutError, Exception):
+                    stdout_reader.cancel()
+                    stderr_reader.cancel()
             except asyncio.TimeoutError:
                 try:
-                    proc.terminate()
+                    try:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                    except Exception:
+                        proc.terminate()
                     try:
                         await asyncio.wait_for(proc.wait(), timeout=2.0)
                     except (asyncio.TimeoutError, Exception):
-                        proc.kill()
+                        try:
+                            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                        except Exception:
+                            proc.kill()
                         await asyncio.wait_for(proc.wait(), timeout=1.0)
                 except Exception:
                     pass
+                stdout_reader.cancel()
+                stderr_reader.cancel()
                 timeout_msg = f"\n⏱️ [Execution Timeout]: agy CLI process exceeded time limit of {int(timeout)} seconds and was stopped.\n"
                 if on_chunk:
                     on_chunk(timeout_msg)
@@ -367,6 +398,18 @@ async def generate_code_stream(
         except Exception:
             pass
 
+    # Ensure project workspace has git initialized and linked with GitHub remote origin
+    if not os.path.isdir(os.path.join(project_dir, ".git")):
+        try:
+            env = get_github_env()
+            ensure_git_config(env)
+            ensure_remote_repo_and_main(project_dir, app_name, env=env)
+        except Exception:
+            try:
+                subprocess.run(["git", "init"], cwd=project_dir, check=False, capture_output=True)
+            except Exception:
+                pass
+
     # Check if project already has prior prompt history before appending current prompt
     prompt_file = os.path.join(project_dir, "prompt.txt")
     has_prior_prompts = os.path.isfile(prompt_file) and os.path.getsize(prompt_file) > 0
@@ -403,7 +446,7 @@ async def generate_code_stream(
                 continue_session=should_continue,
                 on_chunk=on_chunk_cb,
                 proc_callback=proc_callback,
-                timeout=600.0,
+                timeout=300.0,
             )
         finally:
             chunk_queue.put_nowait(None)
