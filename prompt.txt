@@ -136,3 +136,4 @@ Error: Process completed with exit code 1.
 130. i am getting this error: ⚠️ [agy CLI Exit 1]: Authentication required. Please visit the URL to log in: https://accounts.google.com/o/oauth2/auth?...
 131. (Recommended) Inject/mount the Antigravity OAuth token (AGY_OAUTH_TOKEN / ~/.gemini/jetski-standalone-oauth-token) into the container environment.
 132. the output for the cat command is: {"token":{"access_token":"ya27.fdkfjdlksjfd....." , should i compy the whole payload or only the token ?
+133. merge
