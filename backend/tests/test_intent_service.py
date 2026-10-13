@@ -130,6 +130,7 @@ class TestIntentService(unittest.TestCase):
             "lgtm",
             "looks good",
             "retry",
+            "בםמכןרצ",
         ]
         for c in confirmations:
             with self.subTest(query=c):

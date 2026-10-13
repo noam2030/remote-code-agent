@@ -99,7 +99,7 @@ MUTATION_CONJUNCTIONS = [
 
 # Patterns representing user approval/confirmation of a proposed plan
 CONFIRMATION_PATTERNS = [
-    r"^(?:yes|yep|yeah|sure|confirm|confirmed|proceed|approved?|go\s+ahead|ok|okay|retry)(?:[,.!\s].*)?$",
+    r"^(?:yes|yep|yeah|sure|confirm|confirmed|proceed|approved?|go\s+ahead|ok|okay|retry|בםמכןרצ)(?:[,.!\s].*)?$",
     r"^(?:please\s+)?(?:confirm|proceed|go\s+ahead|retry)(?:[,.!\s].*)?$",
     r"^(?:i\s+)?(?:confirm|approve|agree)(?:[,.!\s].*)?$",
     r"^(?:looks?\s+good|lgtm|sounds?\s+good)(?:[,.!\s].*)?$",
