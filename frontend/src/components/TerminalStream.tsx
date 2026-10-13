@@ -4,6 +4,7 @@ interface TerminalStreamProps {
   logs: string
   isGenerating: boolean
   onClear: () => void
+  onCancel?: () => void
 }
 
 const DEFAULT_FONT_SIZE = 19
@@ -14,6 +15,7 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
   logs,
   isGenerating,
   onClear,
+  onCancel,
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
@@ -78,8 +80,11 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const isCancelled = logs.includes('[Run Cancelled]')
   const statusBadge = isGenerating ? (
     <span className="terminal-badge badge-running">RUNNING</span>
+  ) : isCancelled ? (
+    <span className="terminal-badge" style={{ background: '#b91c1c', color: '#fff' }}>STOPPED</span>
   ) : hasFinishedOnce ? (
     <span className="terminal-badge badge-success">SUCCESS</span>
   ) : (
@@ -166,6 +171,16 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
               A+
             </button>
           </div>
+          {isGenerating && onCancel && (
+            <button
+              className="terminal-btn"
+              onClick={onCancel}
+              style={{ background: '#dc2626', borderColor: '#b91c1c', color: '#fff', fontWeight: 600 }}
+              title="Stop running execution"
+            >
+              ⏹️ Stop
+            </button>
+          )}
           <button className="terminal-btn" onClick={onClear} disabled={isGenerating}>
             Clear
           </button>

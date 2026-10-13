@@ -25,6 +25,7 @@ class ActiveRun:
     logs: list[str] = field(default_factory=list)
     subscribers: set[asyncio.Queue] = field(default_factory=set)
     task: asyncio.Task | None = None
+    process: asyncio.subprocess.Process | None = None
     error: str | None = None
 
 
@@ -58,6 +59,49 @@ class RunManager:
             "started_at": self.current_run.started_at,
             "completed_at": self.current_run.completed_at,
         }
+
+    async def cancel_run(self, run_id: str | None = None) -> bool:
+        """Cancels an active run, terminating the running subprocess and task."""
+        if not self.current_run or self.current_run.status != "running":
+            return False
+
+        if run_id and self.current_run.run_id != run_id:
+            return False
+
+        run = self.current_run
+        run.status = "cancelled"
+        run.completed_at = time.time()
+        cancelled_msg = "\n⏹️ [Run Cancelled] Generation was cancelled by user.\n"
+        run.logs.append(cancelled_msg)
+
+        for q in list(run.subscribers):
+            try:
+                q.put_nowait(cancelled_msg)
+            except Exception:
+                pass
+
+        proc = run.process
+        if proc and proc.returncode is None:
+            try:
+                proc.terminate()
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=2.0)
+                except (asyncio.TimeoutError, Exception):
+                    proc.kill()
+                    await asyncio.wait_for(proc.wait(), timeout=1.0)
+            except Exception:
+                pass
+
+        if run.task and not run.task.done():
+            run.task.cancel()
+
+        for q in list(run.subscribers):
+            try:
+                q.put_nowait(None)
+            except Exception:
+                pass
+
+        return True
 
     def start_run(
         self,
@@ -104,7 +148,13 @@ class RunManager:
         )
         self.current_run = run
 
-        gen = (generator_fn or generate_code_stream)(prompt, project_name=effective_project)
+        import inspect
+        target_fn = generator_fn or generate_code_stream
+        kwargs = {"project_name": effective_project}
+        if "proc_callback" in inspect.signature(target_fn).parameters:
+            kwargs["proc_callback"] = lambda p: setattr(run, "process", p)
+
+        gen = target_fn(prompt, **kwargs)
         task = asyncio.create_task(self._execute_run(run, gen))
         run.task = task
         return run
@@ -122,13 +172,14 @@ class RunManager:
             run.status = "completed"
         except asyncio.CancelledError:
             run.status = "cancelled"
-            cancelled_msg = "\n⏹️ [Run Cancelled] Generation was cancelled.\n"
-            run.logs.append(cancelled_msg)
-            for q in list(run.subscribers):
-                try:
-                    q.put_nowait(cancelled_msg)
-                except Exception:
-                    pass
+            if not any("Run Cancelled" in log for log in run.logs):
+                cancelled_msg = "\n⏹️ [Run Cancelled] Generation was cancelled by user.\n"
+                run.logs.append(cancelled_msg)
+                for q in list(run.subscribers):
+                    try:
+                        q.put_nowait(cancelled_msg)
+                    except Exception:
+                        pass
             raise
         except Exception as e:
             run.status = "error"

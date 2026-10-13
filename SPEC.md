@@ -26,10 +26,12 @@ The service is packaged using a single, authoritative root `Dockerfile` and depl
 - **Single Authoritative Dockerfile**: All container builds execute exclusively from the single root `Dockerfile` in the project repository root. Redundant nested Dockerfiles (e.g. `backend/Dockerfile`) are removed to prevent build ambiguity.
 - **CLI Prompt Invocation & Session Continuity**: When the user submits a prompt in the web UI, the backend executes the `agy` CLI non-interactively inside the target project workspace (`workspace/<project_name>`). For subsequent prompts within an existing project workspace session, execution passes `--continue` to retain multi-turn conversational context, awareness of previously written code, and iterative instruction memory.
 - **Unified Continuous Session Console**: All prompt interactions and outputs within a project session accumulate into a single continuous console transcript. The web interface and backend `RunManager` preserve cumulative logs across turns instead of wiping the console on each new command, allowing users to review the complete history of instructions and outputs.
-- **Response On Completion (Blocking Wait)**: The web application executes the `agy` CLI subprocess asynchronously, waits until the CLI process finishes execution (`communicate()`), captures stdout and stderr, and returns the response only when the CLI finishes.
+- **Live Output Streaming & Execution Safety**: Subprocess execution in `execute_agy_cli` streams stdout and stderr asynchronously line-by-line in real time directly to the client rather than buffering until process termination. Standard input is closed via `stdin=asyncio.subprocess.DEVNULL` to prevent hangs on interactive prompts. A configurable timeout (default 600s, with `--print-timeout 600s`) ensures runaway commands or servers do not hang indefinitely.
+- **Run Cancellation & Subprocess Termination**: The system supports stopping in-flight generation runs at any time via `cancel_run()` and `POST /api/runs/cancel`. When triggered, the backend sends `SIGTERM` (and `SIGKILL` if ungraceful) to the child subprocess, updates run status to `cancelled`, logs `⏹️ [Run Cancelled] Generation was cancelled by user.`, and immediately frees the system to accept subsequent user prompts.
+- **Space/Hyphen Normalized Project Intent Detection**: When the user references an existing workspace project in their prompt (e.g. "hello world app"), `detect_project_from_prompt` recognizes project names regardless of whether hyphens, underscores, or spaces are used, and automatically routes execution to the referenced project workspace.
 - **Headless Container Authentication**: The backend configures `modelProvider: "gemini"` in `~/.gemini/antigravity-cli/settings.json` and forwards execution environment variables to the `agy` subprocess: `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GH_TOKEN`, `PATH`, and `HOME`. `agy` executes headlessly without prompting for interactive OAuth login URLs.
 - **Decoupled Background Execution & Cross-Device Session Handoff**: Code generation tasks execute in independent server-side background tasks managed by a singleton `RunManager`, decoupled from individual client HTTP connection lifetimes. Closing a client browser tab or socket does not cancel generation.
-- **Re-attachable Active Run**: The server provides `GET /api/runs/active` and `GET /api/runs/active/stream`. Clients opening the application on any device (e.g. mobile phone) query active run status. While `agy` runs, the status is `running`. Once finished, the status is `completed` with the full cumulative session response.
+- **Re-attachable Active Run**: The server provides `GET /api/runs/active`, `GET /api/runs/active/stream`, and `POST /api/runs/cancel`. Clients opening the application on any device query active run status. While `agy` runs, the status is `running`. Once finished, the status is `completed` (or `cancelled`/`error`) with the full cumulative session response.
 - **Application-Level Repository Management**: The webpage automatically loads all user GitHub repositories on startup via `GET /api/projects` in the exact order as GitHub (most recently updated/used repository appearing first). Subdirectories are never listed as projects, and projects are never stored in databases.
 - **Repository Cloning & Synchronization**: When a user selects a repository and submits an instruction to write new code or update code:
   - If the project has not yet been cloned locally, the application automatically clones the repository into `workspace/<project_name>`.
@@ -48,6 +50,11 @@ The service is packaged using a single, authoritative root `Dockerfile` and depl
   - Controls to create a new project (`+ New`). Project deletion is entirely removed.
   - Creating a new project (`+ New`) immediately adds the project to the top of the sidebar list with a `✨ New` indicator and selects it as the active target project, so it remains selected for code generation.
   - Selection state is case-insensitive and preserves canonical repository casing, ensuring that mixed-case or TitleCase projects (such as `OpenTrain` or `QR-X-Ray`) remain permanently active when selected.
+- **Stop / Cancel Run Action**:
+  - While code generation is running, the Prompt Editor and Terminal Stream surface an interactive `⏹️ Stop` action button.
+  - Clicking Stop immediately triggers backend cancellation, terminates the running `agy` CLI process, appends a cancellation notice to the terminal log, and frees the prompt input so the user can immediately submit new requests without delay.
+- **Live Real-Time Subprocess Streaming**:
+  - The console receives and renders stdout and stderr lines from `agy` in real time as they happen, showing tool calls, planning steps, and command outputs without silent multi-minute delays.
 - **Cross-Device Handover & Continuous Streaming**:
   - A user can enter a prompt on desktop (Mac), trigger generation, and close the browser or shut down their machine.
   - Opening the web application on a mobile phone (or any secondary browser) checks for active runs. If an active run is detected, the frontend automatically selects the relevant project, restores prior log output, displays an active generation indicator, and connects to the live stream to render ongoing progress in real-time.
@@ -124,19 +131,21 @@ The system consists of two primary tiers:
 ## 6. Backend
 The backend is structured under `backend/src/remote_code_agent`:
 - `core/config.py`: Environment variable loading, GCP project ID (`ai-learning-499409`), Vercel scope settings (`noam-projects2`), `AGY_CLI_PATH` (`/usr/local/bin/agy` or `agy`), and `ensure_agy_settings()` which ensures `settings.json` configures `modelProvider: "gemini"` when `GEMINI_API_KEY` is present. Also provides `ensure_agy_oauth_token()` for optional OAuth token seeding.
-- `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, `/api/runs/active`, `/api/runs/active/stream`, and file inspection endpoints.
+- `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, `/api/runs/active`, `/api/runs/active/stream`, `/api/runs/cancel`, and file inspection endpoints.
 - `services/code_creation.py`: Core CLI execution module.
   - Ensures `settings.json` is configured (`ensure_agy_settings()`) and any credentials are seeded prior to invocation.
-  - Spawns the pre-installed `agy` CLI as an asynchronous subprocess:
-    `agy -p "<prompt>" --dangerously-skip-permissions`
+  - Spawns the pre-installed `agy` CLI as an asynchronous subprocess with `stdin=asyncio.subprocess.DEVNULL`:
+    `agy -p "<prompt>" --dangerously-skip-permissions --print-timeout 600s`
   - When executing within an existing project workspace with previous prompt history or code, passes `--continue` to preserve multi-turn context and conversational memory.
   - Sets the subprocess working directory to the target project workspace (`workspace/<project_name>`).
   - Injects authenticated environment variables (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GH_TOKEN`, `PATH`, `HOME`).
-  - Asynchronously awaits process termination via `communicate()`.
-  - Only when the `agy` CLI process finishes does it yield the complete response and project run stats.
+  - Asynchronously reads stdout and stderr line-by-line as they occur, streaming live chunks in real time to subscribers, bounded by a 600-second execution timeout.
+  - Intelligently recognizes project names referenced in user prompts across spaces, hyphens, and underscores, auto-routing execution to the target project workspace.
 - `services/run_manager.py`: Centralized singleton manager governing code generation background tasks.
   - Decouples task execution from single client connections using `asyncio.create_task`.
   - Retains cumulative session logs across all sequential runs for the active project, prefixing new user commands with clear dividers (`💬 [User] <prompt>`).
+  - Tracks the running subprocess handle and PID on `ActiveRun`.
+  - Implements `cancel_run(run_id=None)`: terminates child processes (`SIGTERM` followed by `SIGKILL` if ungraceful), cancels the asyncio background task, marks status as `cancelled`, appends a cancellation notice, and broadcasts to subscribers.
   - While `agy` executes, reports `status: "running"`.
   - When `agy` finishes, stores the complete response and sets `status: "completed"`.
   - Enables re-connecting clients (e.g. mobile phone after disconnecting from desktop) to query active run state via `get_active_run()` and receive the cumulative response upon completion.
@@ -144,16 +153,18 @@ The backend is structured under `backend/src/remote_code_agent`:
 - `services/project_service.py`: Discovers user GitHub repositories via `gh repo list` and REST API as a direct, dynamic reflection of GitHub without inspecting subdirectories. Formats repository catalog records in descending order of `updated_at`. Local workspace directories under `workspace/` serve as the target execution directories for `agy`.
 - `services/prompt_service.py`: Maintains append-only sequential user prompt history in `prompt.txt` (`append_numbered_prompt`).
 - `services/github_service.py`: Manages git operations and GitHub CLI workflows (cloning, branch creation, PR management, and secret provisioning).
+- `services/intent_service.py`: Classifies user prompts and detects referenced projects using space/hyphen/underscore-normalized fuzzy matching.
 - `server.py`: FastAPI application factory with CORS middleware, health routes, and run management endpoints.
 
 ## 7. Frontend
 The frontend is structured under `frontend/`:
-- `src/components/`: Reusable UI modules including `Header`, `Sidebar` (hosting complete project details, stats, deployment links), `FilesDrawer`, `TerminalStream`, `PromptEditor` (clean prompt input with suggestion chips), and modal dialogs.
-- `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints, active run retrieval (`getActiveRun`), and execution endpoints.
+- `src/components/`: Reusable UI modules including `Header`, `Sidebar` (hosting complete project details, stats, deployment links), `FilesDrawer`, `TerminalStream`, `PromptEditor` (clean prompt input with suggestion chips and interactive `⏹️ Stop` cancel action), and modal dialogs.
+- `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints, active run retrieval (`getActiveRun`), cancellation (`cancelActiveRun`), and execution endpoints.
 - `src/types/`: Interfaces for projects, generation events, active runs, file trees, and system status.
 - `src/App.tsx`: Top-level application state orchestrator:
   - When the user submits a prompt, triggers execution and preserves cumulative session logs in the terminal console, appending a formatted user prompt divider and streaming incoming responses without wiping previous outputs.
-  - Waits for the backend to finish the `agy` run, then displays the complete cumulative response.
+  - Renders live line-by-line output as `agy` executes in the background.
+  - Provides a one-click `⏹️ Stop` button to cancel stuck or long-running executions, calling `cancelActiveRun()` to immediately terminate the backend process and reset the UI.
   - Handles project creation persistence, active project selection with case-insensitivity, active run auto-detection and re-connection on mount, seamless mobile handover, and mobile view switching (`⚡ Live Console` / `📁 Projects`).
 - `src/index.css`: Global styles, dynamic viewport height sizing (`100vh` and `100dvh`), flex-constrained independent scrolling containers, and mobile navigation tab styles.
 - `vercel.json`: Routing and static asset caching configuration.
@@ -200,7 +211,7 @@ The frontend is structured under `frontend/`:
     run_id: string | null
     project_name: string | null
     prompt: string | null
-    status: 'idle' | 'running' | 'completed' | 'error'
+    status: 'idle' | 'running' | 'completed' | 'error' | 'cancelled'
     logs: string
     started_at: number | null
   }
@@ -214,6 +225,8 @@ The frontend is structured under `frontend/`:
 - `GET /api/projects/{name}/files/{file_path}`: Retrieve content and metadata for a specific file in a project.
 - `GET /api/runs/active`: Query current active or latest run status, returning `ActiveRunResponse` with accumulated logs.
 - `GET /api/runs/active/stream`: Stream ongoing run output (replays buffered history then delivers output once complete) over text/plain or SSE.
+- `POST /api/runs/cancel`: Cancel active run immediately, terminating the child process and freeing the server for subsequent prompts.
+- `POST /api/runs/{run_id}/cancel`: Cancel a specific run by ID.
 - `POST /api/generate`: Initiate execution of the `agy` CLI with the user's prompt on the target project workspace, managing execution via background `RunManager`, and returning the response when the CLI finishes.
 - `GET /api/generate`: GET variant of code generation execution endpoint.
 - `GET /api/projects/{name}/prompts`: Retrieve history of prompts for the specified project.
@@ -244,11 +257,11 @@ The application relies on the following environment variables:
 - Test execution command: `.venv/bin/python -m unittest discover tests`.
 - Frontend build validation: `npm run build` executed in `frontend/`.
 - Covered test modules:
-  - `test_code_creation.py`: Pre-installed `agy` CLI subprocess execution, argument construction (`-p <prompt> --dangerously-skip-permissions`), multi-turn session continuation flag (`--continue`), workspace directory handling (`cwd`), environment variable propagation (`GEMINI_API_KEY`, `GH_TOKEN`), automatic `settings.json` configuration (`modelProvider: "gemini"`), token seeding, quota/error capture, and response-on-completion delivery.
-  - `test_api_routes.py`: REST endpoint verification (including `/api/runs/active` and `/api/runs/active/stream`).
-  - `test_run_manager.py`: Background task orchestration, cumulative session log retention across arbitrary sequential prompts for the same project, multi-subscriber queues, buffered log replaying, and state retention.
+  - `test_code_creation.py`: Pre-installed `agy` CLI subprocess execution, argument construction (`-p <prompt> --dangerously-skip-permissions`), multi-turn session continuation flag (`--continue`), workspace directory handling (`cwd`), environment variable propagation (`GEMINI_API_KEY`, `GH_TOKEN`), automatic `settings.json` configuration (`modelProvider: "gemini"`), token seeding, quota/error capture, live streaming, timeout handling, and response delivery.
+  - `test_api_routes.py`: REST endpoint verification (including `/api/runs/active`, `/api/runs/active/stream`, and `/api/runs/cancel`).
+  - `test_run_manager.py`: Background task orchestration, cumulative session log retention, run cancellation, subprocess termination, multi-subscriber queues, buffered log replaying, and state retention.
   - `test_github_service.py`: Git operations, branch creation, feature branch push, PR creation, squash-merging, and secret synchronization.
-  - `test_intent_service.py`: Classification of user prompts (info retrieval, confirmation requests, merge requests, code mutation requests).
+  - `test_intent_service.py`: Classification of user prompts (info retrieval, confirmation requests, merge requests, code mutation requests, and space/hyphen normalized project detection).
   - `test_project_service.py`: GitHub repository catalog discovery, most-recently-updated ordering matching GitHub, workspace scanning, dedicated repo sync, and cleanup.
   - `test_prompt_service.py`: `prompt.txt` manipulation.
   - `test_server.py`: FastAPI application startup, CORS verification, root metadata, and health endpoint verification.
