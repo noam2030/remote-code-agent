@@ -156,3 +156,4 @@ Error: Process completed with exit code 1.
 150. again it is stack. the second promt don return!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 151. why cant you just implemet the same exact cli, same as running om my mac????????????? why to use 'is publishing intent'???????????????????????? do a similar to local cli!!!!!!!!!!!!!!!!!!!
 152. בםמכןרצ
+153. merge
