@@ -250,6 +250,44 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Gemini API Quota Notice", stderr)
             self.assertIn("aistudio.google.com", stderr)
 
+    async def test_execute_agy_cli_passes_continue_flag(self):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"All done", b""))
+
+        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=mock_proc)) as mock_exec:
+            code, stdout, stderr = await execute_agy_cli(
+                prompt="great, publish it",
+                project_dir="/workspace/hello-test",
+                continue_session=True,
+            )
+            self.assertEqual(code, 0)
+            called_args = mock_exec.call_args[0]
+            self.assertIn("--continue", called_args)
+
+    async def test_execute_agy_cli_retries_without_continue_if_no_conversation(self):
+        proc_fail = MagicMock()
+        proc_fail.returncode = 1
+        proc_fail.communicate = AsyncMock(return_value=(b"", b"Error: No conversation found to continue"))
+
+        proc_success = MagicMock()
+        proc_success.returncode = 0
+        proc_success.communicate = AsyncMock(return_value=(b"Started fresh session", b""))
+
+        with patch("asyncio.create_subprocess_exec", AsyncMock(side_effect=[proc_fail, proc_success])) as mock_exec:
+            code, stdout, stderr = await execute_agy_cli(
+                prompt="follow up",
+                project_dir="/workspace/hello-test",
+                continue_session=True,
+            )
+            self.assertEqual(code, 0)
+            self.assertIn("Started fresh session", stdout)
+            self.assertEqual(mock_exec.call_count, 2)
+            first_call_args = mock_exec.call_args_list[0][0]
+            second_call_args = mock_exec.call_args_list[1][0]
+            self.assertIn("--continue", first_call_args)
+            self.assertNotIn("--continue", second_call_args)
+
 
 if __name__ == "__main__":
     unittest.main()

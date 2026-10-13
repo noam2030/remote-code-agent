@@ -140,3 +140,13 @@ Error: Process completed with exit code 1.
 134. ⚠️ [agy CLI Exit 1]: Authentication required. Please visit the URL to log in: https://accounts.google.com/o/oauth2/auth?...
 135. yes
 136. merge
+137. ⚠️ [agy CLI Exit 3]: error: agent executor error: generating and executing: Error 402, Message: Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing...
+138. but my GEMINI_API_KEY is fine... you are using it.. i am using it in other projects.. it is the same key. it belongs to paid account. it worked in othe rplaces
+139. i dont understand. why in the previous implementation (the sdk code which aprach the llm) it worked?
+140. This current coding session on your Mac is running through the Antigravity CLI's Google OAuth session, not the GEMINI_API_KEY. i dont understand what is the difference.....
+141. if i buy Google AI Pro - Gemini 18 Months (Global) - Activation Link, can i use it to api key?
+142. when i use agi here, just like talking to you know, which api key is used? who paid for that?
+143. i want to have one output for a session. righ now i am writing command, for example implemnet a, then get output. then i pormt great, publish it. but i see in the console only the last command. i want to see all. i want that the agent will know that the new promt is related to the same session, and he sould pusblish the previous written code
+144. retry
+145. confirm
+146. merge

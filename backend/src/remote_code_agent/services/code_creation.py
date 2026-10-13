@@ -155,6 +155,17 @@ async def execute_agy_cli(
         stdout_text = stdout_bytes.decode("utf-8", errors="replace")
         stderr_text = stderr_bytes.decode("utf-8", errors="replace")
 
+        if continue_session and proc.returncode != 0:
+            lower_err = stderr_text.lower()
+            if "no conversation" in lower_err or "cannot continue" in lower_err or "conversation not found" in lower_err:
+                logger.info(f"Retrying agy CLI without --continue in {project_dir} due to missing previous conversation")
+                return await execute_agy_cli(
+                    prompt=prompt,
+                    project_dir=project_dir,
+                    continue_session=False,
+                    extra_flags=extra_flags,
+                )
+
         if proc.returncode != 0:
             if "Error 402" in stderr_text or "prepayment credits are depleted" in stderr_text or "RESOURCE_EXHAUSTED" in stderr_text:
                 stderr_text += (
@@ -250,6 +261,11 @@ async def generate_code_stream(
         except Exception:
             pass
 
+    # Check if project already has prior prompt history before appending current prompt
+    prompt_file = os.path.join(project_dir, "prompt.txt")
+    has_prior_prompts = os.path.isfile(prompt_file) and os.path.getsize(prompt_file) > 0
+    should_continue = is_confirm or has_prior_prompts
+
     # Record the user prompt in prompt.txt
     append_numbered_prompt(project_dir, prompt)
 
@@ -272,7 +288,7 @@ async def generate_code_stream(
     returncode, stdout_text, stderr_text = await execute_agy_cli(
         prompt=prompt,
         project_dir=project_dir,
-        continue_session=is_confirm,
+        continue_session=should_continue,
     )
 
     # Clean up virtual environments or caches

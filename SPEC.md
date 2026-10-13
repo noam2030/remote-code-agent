@@ -24,21 +24,17 @@ The service is packaged using a single, authoritative root `Dockerfile` and depl
 ## 2. Requirements
 - **Pre-installed `agy` CLI in Docker**: The container build installs the official Antigravity CLI flat binary (`agy`) via the official Unix installer (`curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- -d /usr/local/bin`) directly into `/usr/local/bin/agy`, ensuring it is executable and immediately available on system `$PATH`.
 - **Single Authoritative Dockerfile**: All container builds execute exclusively from the single root `Dockerfile` in the project repository root. Redundant nested Dockerfiles (e.g. `backend/Dockerfile`) are removed to prevent build ambiguity.
-- **CLI Prompt Invocation**: When the user submits a prompt in the web UI, the backend executes the `agy` CLI non-interactively (`agy -p "<prompt>" --dangerously-skip-permissions`) inside the target project workspace (`workspace/<project_name>`).
+- **CLI Prompt Invocation & Session Continuity**: When the user submits a prompt in the web UI, the backend executes the `agy` CLI non-interactively inside the target project workspace (`workspace/<project_name>`). For subsequent prompts within an existing project workspace session, execution passes `--continue` to retain multi-turn conversational context, awareness of previously written code, and iterative instruction memory.
+- **Unified Continuous Session Console**: All prompt interactions and outputs within a project session accumulate into a single continuous console transcript. The web interface and backend `RunManager` preserve cumulative logs across turns instead of wiping the console on each new command, allowing users to review the complete history of instructions and outputs.
 - **Response On Completion (Blocking Wait)**: The web application executes the `agy` CLI subprocess asynchronously, waits until the CLI process finishes execution (`communicate()`), captures stdout and stderr, and returns the response only when the CLI finishes.
 - **Headless Container Authentication**: The backend configures `modelProvider: "gemini"` in `~/.gemini/antigravity-cli/settings.json` and forwards execution environment variables to the `agy` subprocess: `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GH_TOKEN`, `PATH`, and `HOME`. `agy` executes headlessly without prompting for interactive OAuth login URLs.
 - **Decoupled Background Execution & Cross-Device Session Handoff**: Code generation tasks execute in independent server-side background tasks managed by a singleton `RunManager`, decoupled from individual client HTTP connection lifetimes. Closing a client browser tab or socket does not cancel generation.
-- **Re-attachable Active Run**: The server provides `GET /api/runs/active` and `GET /api/runs/active/stream`. Clients opening the application on any device (e.g. mobile phone) query active run status. While `agy` runs, the status is `running`. Once finished, the status is `completed` with the full CLI response.
+- **Re-attachable Active Run**: The server provides `GET /api/runs/active` and `GET /api/runs/active/stream`. Clients opening the application on any device (e.g. mobile phone) query active run status. While `agy` runs, the status is `running`. Once finished, the status is `completed` with the full cumulative session response.
 - **Application-Level Repository Management**: The webpage automatically loads all user GitHub repositories on startup via `GET /api/projects` in the exact order as GitHub (most recently updated/used repository appearing first). Subdirectories are never listed as projects, and projects are never stored in databases.
 - **Repository Cloning & Synchronization**: When a user selects a repository and submits an instruction to write new code or update code:
   - If the project has not yet been cloned locally, the application automatically clones the repository into `workspace/<project_name>`.
   - If the project already exists locally in `workspace/<project_name>`, the application pulls latest remote changes to ensure the workspace is up to date before `agy` executes.
 - **Project Isolation**: Maintain independent workspace directories under `workspace/<project_name>` for each generated or managed project.
-- **Authoritative Project Specification (`SPEC.md`)**: For every generated or managed project, create and maintain a single, authoritative `SPEC.md` capturing the complete, current state of the application containing all mandatory sections 1 to 12.
-- **Prompt History Tracking**: Persist sequential user prompts per project in `prompt.txt` (`1. <prompt>`, `2. <prompt>`) as an append-only log, never overwriting prompt history.
-- **Automated Deployment Workflows & Naming Conventions**: When asked to deploy, generate GitHub Actions workflows (`.github/workflows/deploy.yml`):
-  - Backend Cloud Run services named `<project_name>-api`, deployed via Source type (`--source .`) to project `ai-learning-499409` on port 8080.
-  - Frontend Vercel web applications named `<project_name>-ui` deployed under team `noam-projects2`.
 - **Authoritative Project Specification (`SPEC.md`)**: For every generated or managed project, create and maintain a single, authoritative `SPEC.md` capturing the complete, current state of the application containing all mandatory sections 1 to 12 (1. Overview, 2. Requirements, 3. User Experience, 4. Architecture, 5. Technology Stack, 6. Backend, 7. Frontend, 8. Data Model, 9. API, 10. Configuration, 11. Testing, 12. Deployment). No section 1 to 12 may be omitted so another coding agent can recreate the project from scratch without the original conversation.
 - **Spec-First Development Workflow**: Upon receiving any instruction to build, update, or modify an application, the agent must update `SPEC.md` first. Code, tests, and configuration must always be an exact reflection of `SPEC.md`, never deviating from or contradicting the specification.
 - **Prompt History Tracking**: Persist sequential user prompts per project in `prompt.txt` (`1. <prompt>`, `2. <prompt>`).
@@ -56,11 +52,14 @@ The service is packaged using a single, authoritative root `Dockerfile` and depl
   - A user can enter a prompt on desktop (Mac), trigger generation, and close the browser or shut down their machine.
   - Opening the web application on a mobile phone (or any secondary browser) checks for active runs. If an active run is detected, the frontend automatically selects the relevant project, restores prior log output, displays an active generation indicator, and connects to the live stream to render ongoing progress in real-time.
   - When the process completes, the terminal stream displays the final output, and the prompt input is fully enabled so the user can immediately continue prompting directly from their phone.
-- **Pair-Programming Controls & Interactive Action Buttons**:
-  - **Planning Phase UX**: When the agent yields its plan ending with `Confirm?`, the terminal stream displays the plan clearly. The Prompt Editor surfaces a quick `✅ Confirm Plan` chip to immediately submit confirmation.
-  - **Ongoing Stream Continuation UX**: When the user triggers confirmation (`confirm`), the terminal stream does not clear or start a new blank session. Instead, the console appends a user prompt marker (`💬 [User] confirm`) and seamlessly streams the execution output (branch creation, spec update, coding, testing, PR creation) directly beneath the plan in the ongoing terminal stream with auto-scrolling.
-  - **Pull Request & Merge Approval UX**: When a feature branch is pushed and a PR is created, the terminal stream highlights the Pull Request URL. The UI surfaces a `🔀 Merge Pull Request` chip to approve and merge. Triggering merge appends `💬 [User] merge` and the merge/deployment logs directly to the same continuous console stream.
-  - **Prompt Editor Guidance**: The footer reflects the true pair-programming branch & PR lifecycle: changes are proposed, confirmed, implemented on dedicated feature branches, reviewed via PR, and merged upon approval.
+- **Ongoing Stream Continuation & Unified Session UX**:
+  - The live console maintains a continuous transcript across all user commands for the active project.
+  - When the user submits a new prompt (such as "implement feature A", then "great, publish it"), the console does not wipe previous logs. It renders a clean user prompt divider (`💬 [User Prompt] <prompt>`) and streams the execution output seamlessly beneath the prior turns with automatic scrolling.
+  - Reconnecting from another device or reloading the page automatically loads the full cumulative session transcript.
+  - Users can manually clear the screen at any time via the dedicated "Clear" button in the terminal header.
+- **Planning Phase UX**: When the agent yields its plan ending with `Confirm?`, the terminal stream displays the plan clearly. The Prompt Editor surfaces a quick `✅ Confirm Plan` chip to immediately submit confirmation.
+- **Pull Request & Merge Approval UX**: When a feature branch is pushed and a PR is created, the terminal stream highlights the Pull Request URL. The UI surfaces a `🔀 Merge Pull Request` chip to approve and merge. Triggering merge appends `💬 [User] merge` and the merge/deployment logs directly to the same continuous console stream.
+- **Prompt Editor Guidance**: The footer reflects the true pair-programming branch & PR lifecycle: changes are proposed, confirmed, implemented on dedicated feature branches, reviewed via PR, and merged upon approval.
 - **Mobile Responsive Layout & View Switching (`⚡ Live Console` / `📁 Projects`)**:
   - On mobile screens (viewports under 768px), the layout provides a dedicated mobile view toggle at the top (`⚡ Live Console` and `📁 Projects`).
   - When viewing the console, the view focuses immediately and cleanly on the **Prompt Editor** and **Live Terminal Stream**, removing any redundant top project details banner to maximize visible console height on mobile.
@@ -130,15 +129,17 @@ The backend is structured under `backend/src/remote_code_agent`:
   - Ensures `settings.json` is configured (`ensure_agy_settings()`) and any credentials are seeded prior to invocation.
   - Spawns the pre-installed `agy` CLI as an asynchronous subprocess:
     `agy -p "<prompt>" --dangerously-skip-permissions`
+  - When executing within an existing project workspace with previous prompt history or code, passes `--continue` to preserve multi-turn context and conversational memory.
   - Sets the subprocess working directory to the target project workspace (`workspace/<project_name>`).
   - Injects authenticated environment variables (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GH_TOKEN`, `PATH`, `HOME`).
   - Asynchronously awaits process termination via `communicate()`.
   - Only when the `agy` CLI process finishes does it yield the complete response and project run stats.
 - `services/run_manager.py`: Centralized singleton manager governing code generation background tasks.
   - Decouples task execution from single client connections using `asyncio.create_task`.
+  - Retains cumulative session logs across all sequential runs for the active project, prefixing new user commands with clear dividers (`💬 [User] <prompt>`).
   - While `agy` executes, reports `status: "running"`.
   - When `agy` finishes, stores the complete response and sets `status: "completed"`.
-  - Enables re-connecting clients (e.g. mobile phone after disconnecting from desktop) to query active run state via `get_active_run()` and receive the response upon completion.
+  - Enables re-connecting clients (e.g. mobile phone after disconnecting from desktop) to query active run state via `get_active_run()` and receive the cumulative response upon completion.
   - Emits periodic SSE keep-alive heartbeat comments (`: keepalive\n\n`) during execution to prevent intermediate proxies from timing out.
 - `services/project_service.py`: Discovers user GitHub repositories via `gh repo list` and REST API as a direct, dynamic reflection of GitHub without inspecting subdirectories. Formats repository catalog records in descending order of `updated_at`. Local workspace directories under `workspace/` serve as the target execution directories for `agy`.
 - `services/prompt_service.py`: Maintains append-only sequential user prompt history in `prompt.txt` (`append_numbered_prompt`).
@@ -151,8 +152,8 @@ The frontend is structured under `frontend/`:
 - `src/services/api.ts`: Typed HTTP client wrapping backend REST endpoints, active run retrieval (`getActiveRun`), and execution endpoints.
 - `src/types/`: Interfaces for projects, generation events, active runs, file trees, and system status.
 - `src/App.tsx`: Top-level application state orchestrator:
-  - When the user submits a prompt, triggers execution and displays active execution status in the console.
-  - Waits for the backend to finish the `agy` run, then displays the complete response.
+  - When the user submits a prompt, triggers execution and preserves cumulative session logs in the terminal console, appending a formatted user prompt divider and streaming incoming responses without wiping previous outputs.
+  - Waits for the backend to finish the `agy` run, then displays the complete cumulative response.
   - Handles project creation persistence, active project selection with case-insensitivity, active run auto-detection and re-connection on mount, seamless mobile handover, and mobile view switching (`⚡ Live Console` / `📁 Projects`).
 - `src/index.css`: Global styles, dynamic viewport height sizing (`100vh` and `100dvh`), flex-constrained independent scrolling containers, and mobile navigation tab styles.
 - `vercel.json`: Routing and static asset caching configuration.
@@ -243,9 +244,9 @@ The application relies on the following environment variables:
 - Test execution command: `.venv/bin/python -m unittest discover tests`.
 - Frontend build validation: `npm run build` executed in `frontend/`.
 - Covered test modules:
-  - `test_code_creation.py`: Pre-installed `agy` CLI subprocess execution, argument construction (`-p <prompt> --dangerously-skip-permissions`), workspace directory handling (`cwd`), environment variable propagation (`GEMINI_API_KEY`, `GH_TOKEN`), automatic `settings.json` configuration (`modelProvider: "gemini"`), token seeding, quota/error capture, and response-on-completion delivery.
+  - `test_code_creation.py`: Pre-installed `agy` CLI subprocess execution, argument construction (`-p <prompt> --dangerously-skip-permissions`), multi-turn session continuation flag (`--continue`), workspace directory handling (`cwd`), environment variable propagation (`GEMINI_API_KEY`, `GH_TOKEN`), automatic `settings.json` configuration (`modelProvider: "gemini"`), token seeding, quota/error capture, and response-on-completion delivery.
   - `test_api_routes.py`: REST endpoint verification (including `/api/runs/active` and `/api/runs/active/stream`).
-  - `test_run_manager.py`: Background task orchestration, multi-subscriber queues, buffered log replaying, and state retention.
+  - `test_run_manager.py`: Background task orchestration, cumulative session log retention across arbitrary sequential prompts for the same project, multi-subscriber queues, buffered log replaying, and state retention.
   - `test_github_service.py`: Git operations, branch creation, feature branch push, PR creation, squash-merging, and secret synchronization.
   - `test_intent_service.py`: Classification of user prompts (info retrieval, confirmation requests, merge requests, code mutation requests).
   - `test_project_service.py`: GitHub repository catalog discovery, most-recently-updated ordering matching GitHub, workspace scanning, dedicated repo sync, and cleanup.
