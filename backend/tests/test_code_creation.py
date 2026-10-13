@@ -192,6 +192,64 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Authentication Guidance", stderr)
             self.assertIn("AGY_OAUTH_TOKEN", stderr)
 
+    async def test_ensure_agy_settings_creates_settings_file(self):
+        from remote_code_agent.core import config
+        import tempfile
+        import json
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_home = Path(tmp_dir)
+
+            with patch("pathlib.Path.home", return_value=fake_home), \
+                 patch.object(config, "GEMINI_API_KEY", "test-api-key-123"):
+                result = config.ensure_agy_settings()
+                self.assertTrue(result)
+                settings_file = fake_home / ".gemini" / "antigravity-cli" / "settings.json"
+                self.assertTrue(settings_file.is_file())
+                data = json.loads(settings_file.read_text(encoding="utf-8"))
+                self.assertEqual(data.get("modelProvider"), "gemini")
+
+    async def test_ensure_agy_settings_preserves_existing_keys(self):
+        from remote_code_agent.core import config
+        import tempfile
+        import json
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_home = Path(tmp_dir)
+            settings_dir = fake_home / ".gemini" / "antigravity-cli"
+            settings_dir.mkdir(parents=True, exist_ok=True)
+            initial_data = {"trustedWorkspaces": ["/workspace/test"], "permissions": {"allow": ["git"]}}
+            (settings_dir / "settings.json").write_text(json.dumps(initial_data), encoding="utf-8")
+
+            with patch("pathlib.Path.home", return_value=fake_home), \
+                 patch.object(config, "GEMINI_API_KEY", "test-api-key-123"):
+                result = config.ensure_agy_settings()
+                self.assertTrue(result)
+                data = json.loads((settings_dir / "settings.json").read_text(encoding="utf-8"))
+                self.assertEqual(data.get("modelProvider"), "gemini")
+                self.assertEqual(data.get("trustedWorkspaces"), ["/workspace/test"])
+                self.assertEqual(data.get("permissions"), {"allow": ["git"]})
+
+    async def test_execute_agy_cli_quota_failure_guidance(self):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 3
+        mock_proc.communicate = AsyncMock(return_value=(
+            b"",
+            b"Error 402, Message: Your prepayment credits are depleted. Status: RESOURCE_EXHAUSTED",
+        ))
+
+        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=mock_proc)):
+            code, stdout, stderr = await execute_agy_cli(
+                prompt="Implement feature",
+                project_dir="/workspace/hello-test",
+            )
+            self.assertEqual(code, 3)
+            self.assertIn("Error 402", stderr)
+            self.assertIn("Gemini API Quota Notice", stderr)
+            self.assertIn("aistudio.google.com", stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

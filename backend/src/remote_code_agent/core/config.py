@@ -43,6 +43,8 @@ load_env_file()
 
 import shutil
 
+import json
+
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GH_TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
 AGY_CLI_PATH = (
@@ -51,6 +53,35 @@ AGY_CLI_PATH = (
     or "/usr/local/bin/agy"
 )
 AGY_OAUTH_TOKEN = os.environ.get("AGY_OAUTH_TOKEN") or os.environ.get("JETSKI_OAUTH_TOKEN", "")
+
+
+def ensure_agy_settings() -> bool:
+    """Ensures ~/.gemini/antigravity-cli/settings.json is configured for headless execution.
+
+    When GEMINI_API_KEY is present, configures modelProvider: "gemini" in settings.json
+    so the agy CLI executes directly against the Gemini API without prompting for OAuth.
+    Preserves any existing permissions or trustedWorkspaces configurations.
+    """
+    settings_path = Path.home() / ".gemini" / "antigravity-cli" / "settings.json"
+    try:
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        data: dict = {}
+        if settings_path.is_file():
+            try:
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+
+        if GEMINI_API_KEY and GEMINI_API_KEY.strip():
+            if data.get("modelProvider") != "gemini":
+                data["modelProvider"] = "gemini"
+                with open(settings_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                return True
+        return True
+    except Exception:
+        return False
 
 
 def ensure_agy_oauth_token() -> bool:
@@ -72,7 +103,8 @@ def ensure_agy_oauth_token() -> bool:
     return token_path.is_file() and token_path.stat().st_size > 0
 
 
-# Ensure token file is populated if env var is available
+# Ensure settings and token file are populated on startup
+ensure_agy_settings()
 ensure_agy_oauth_token()
 
 AGENT_WORKSPACE = os.environ.get("AGENT_WORKSPACE", "workspace")
