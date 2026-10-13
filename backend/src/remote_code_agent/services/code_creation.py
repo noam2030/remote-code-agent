@@ -16,6 +16,7 @@ from remote_code_agent.core.config import (
     GEMINI_API_KEY,
     GH_TOKEN,
     ensure_agy_oauth_token,
+    ensure_agy_settings,
 )
 
 logger = logging.getLogger(__name__)
@@ -115,7 +116,8 @@ async def execute_agy_cli(
 
     Awaits process termination and returns (returncode, stdout, stderr).
     """
-    # Ensure headless Antigravity OAuth credentials file is present if AGY_OAUTH_TOKEN is provided
+    # Ensure headless Antigravity configuration (modelProvider: "gemini") and credentials
+    ensure_agy_settings()
     ensure_agy_oauth_token()
 
     agy_bin = AGY_CLI_PATH or shutil.which("agy") or "/usr/local/bin/agy"
@@ -153,12 +155,18 @@ async def execute_agy_cli(
         stdout_text = stdout_bytes.decode("utf-8", errors="replace")
         stderr_text = stderr_bytes.decode("utf-8", errors="replace")
 
-        if proc.returncode != 0 and ("Authentication required" in stderr_text or "visit the URL to log in" in stderr_text):
-            stderr_text += (
-                "\n\n💡 [Authentication Guidance]: The Antigravity CLI requires an authenticated session.\n"
-                "• In Docker / Cloud Run: Set the AGY_OAUTH_TOKEN secret/env variable with the contents "
-                "of ~/.gemini/jetski-standalone-oauth-token, or mount ~/.gemini into the container (-v ~/.gemini:/root/.gemini:ro).\n"
-            )
+        if proc.returncode != 0:
+            if "Error 402" in stderr_text or "prepayment credits are depleted" in stderr_text or "RESOURCE_EXHAUSTED" in stderr_text:
+                stderr_text += (
+                    "\n\n💡 [Gemini API Quota Notice]: Your Gemini API key has depleted its prepayment credits or quota.\n"
+                    "• Please visit Google AI Studio at https://aistudio.google.com/app/api-keys to obtain a key with active quota or manage billing.\n"
+                )
+            elif "Authentication required" in stderr_text or "visit the URL to log in" in stderr_text:
+                stderr_text += (
+                    "\n\n💡 [Authentication Guidance]: The Antigravity CLI requires an authenticated session.\n"
+                    "• In Docker / Cloud Run: Set the GEMINI_API_KEY environment variable to use headless Gemini API mode, "
+                    "or set AGY_OAUTH_TOKEN / mount ~/.gemini into the container (-v ~/.gemini:/root/.gemini:ro).\n"
+                )
 
         return proc.returncode, stdout_text, stderr_text
     except FileNotFoundError:
