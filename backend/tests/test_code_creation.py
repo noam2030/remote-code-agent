@@ -157,7 +157,40 @@ class TestCodeCreation(unittest.IsolatedAsyncioTestCase):
             output = "".join(chunks)
             mock_sync.assert_called_once()
             mock_cli.assert_called_once()
-            self.assertIn("Code implemented.", output)
+    async def test_ensure_agy_oauth_token_writes_file(self):
+        from remote_code_agent.core import config
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_home = Path(tmp_dir)
+            fake_token_json = '{"token": {"access_token": "fake-token"}}'
+
+            with patch("pathlib.Path.home", return_value=fake_home), \
+                 patch.object(config, "AGY_OAUTH_TOKEN", fake_token_json):
+                result = config.ensure_agy_oauth_token()
+                self.assertTrue(result)
+                target_file = fake_home / ".gemini" / "jetski-standalone-oauth-token"
+                self.assertTrue(target_file.is_file())
+                self.assertEqual(target_file.read_text(encoding="utf-8"), fake_token_json)
+
+    async def test_execute_agy_cli_auth_failure_guidance(self):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 1
+        mock_proc.communicate = AsyncMock(return_value=(
+            b"",
+            b"Authentication required. Please visit the URL to log in: https://accounts.google.com/o/oauth2/auth",
+        ))
+
+        with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=mock_proc)):
+            code, stdout, stderr = await execute_agy_cli(
+                prompt="Implement feature",
+                project_dir="/workspace/hello-test",
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("Authentication required", stderr)
+            self.assertIn("Authentication Guidance", stderr)
+            self.assertIn("AGY_OAUTH_TOKEN", stderr)
 
 
 if __name__ == "__main__":

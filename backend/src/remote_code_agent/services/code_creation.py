@@ -12,8 +12,10 @@ from google.antigravity.hooks import policy
 
 from remote_code_agent.core.config import (
     AGY_CLI_PATH,
+    AGY_OAUTH_TOKEN,
     GEMINI_API_KEY,
     GH_TOKEN,
+    ensure_agy_oauth_token,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,6 +115,9 @@ async def execute_agy_cli(
 
     Awaits process termination and returns (returncode, stdout, stderr).
     """
+    # Ensure headless Antigravity OAuth credentials file is present if AGY_OAUTH_TOKEN is provided
+    ensure_agy_oauth_token()
+
     agy_bin = AGY_CLI_PATH or shutil.which("agy") or "/usr/local/bin/agy"
     cmd = [agy_bin, "-p", prompt, "--dangerously-skip-permissions"]
     if continue_session:
@@ -127,6 +132,7 @@ async def execute_agy_cli(
     if GH_TOKEN:
         env["GH_TOKEN"] = GH_TOKEN
         env["GITHUB_TOKEN"] = GH_TOKEN
+    env.setdefault("HOME", os.path.expanduser("~"))
 
     current_path = env.get("PATH", "")
     for p in ["/usr/local/bin", os.path.expanduser("~/.local/bin"), "/usr/bin", "/bin"]:
@@ -146,6 +152,14 @@ async def execute_agy_cli(
         stdout_bytes, stderr_bytes = await proc.communicate()
         stdout_text = stdout_bytes.decode("utf-8", errors="replace")
         stderr_text = stderr_bytes.decode("utf-8", errors="replace")
+
+        if proc.returncode != 0 and ("Authentication required" in stderr_text or "visit the URL to log in" in stderr_text):
+            stderr_text += (
+                "\n\n💡 [Authentication Guidance]: The Antigravity CLI requires an authenticated session.\n"
+                "• In Docker / Cloud Run: Set the AGY_OAUTH_TOKEN secret/env variable with the contents "
+                "of ~/.gemini/jetski-standalone-oauth-token, or mount ~/.gemini into the container (-v ~/.gemini:/root/.gemini:ro).\n"
+            )
+
         return proc.returncode, stdout_text, stderr_text
     except FileNotFoundError:
         err = f"Error: Antigravity CLI executable '{agy_bin}' not found on system PATH."

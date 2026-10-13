@@ -14,6 +14,7 @@ As a core application feature, the web interface loads and catalogues all reposi
 The system supports seamless cross-device session continuation: code generation is managed server-side via a decoupled `RunManager` background task. Users can submit a prompt from a desktop browser (e.g. Mac), close the browser, and subsequently open the application on a mobile phone browser; the phone detects the active run, displays the in-progress status, and when the `agy` CLI finishes on the server, the full response is delivered to the phone. If the CLI already finished before reconnecting, the full response is immediately replayed.
 
 The `agy` CLI authenticates headlessly inside the Docker container using environment variables:
+- `AGY_OAUTH_TOKEN`: Injected Antigravity OAuth credentials (JSON content of `jetski-standalone-oauth-token`). The backend automatically writes this token to `~/.gemini/jetski-standalone-oauth-token` (with mode 0600) upon startup or prior to invoking `agy`, preventing interactive browser login prompts.
 - `GEMINI_API_KEY` / `GOOGLE_API_KEY`: API key credentials for Gemini models.
 - Google Cloud Application Default Credentials (ADC) / `GOOGLE_APPLICATION_CREDENTIALS` / `GCP_SA_KEY`: Native service account authentication on Cloud Run.
 - `GH_TOKEN` / `GITHUB_TOKEN`: GitHub credentials for repository management, git operations, and pull requests via `gh`.
@@ -25,7 +26,7 @@ The service is packaged using a single, authoritative root `Dockerfile` and depl
 - **Single Authoritative Dockerfile**: All container builds execute exclusively from the single root `Dockerfile` in the project repository root. Redundant nested Dockerfiles (e.g. `backend/Dockerfile`) are removed to prevent build ambiguity.
 - **CLI Prompt Invocation**: When the user submits a prompt in the web UI, the backend executes the `agy` CLI non-interactively (`agy -p "<prompt>" --dangerously-skip-permissions`) inside the target project workspace (`workspace/<project_name>`).
 - **Response On Completion (Blocking Wait)**: The web application executes the `agy` CLI subprocess asynchronously, waits until the CLI process finishes execution (`communicate()`), captures stdout and stderr, and returns the response only when the CLI finishes.
-- **Headless Container Authentication**: The backend forwards execution environment variables to the `agy` subprocess: `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GH_TOKEN`, `PATH`, and `HOME`. `agy` runs headlessly without requesting interactive browser login.
+- **Headless Container Authentication**: The backend ensures `~/.gemini/jetski-standalone-oauth-token` is populated from the `AGY_OAUTH_TOKEN` environment variable or volume mount, and forwards execution environment variables to the `agy` subprocess: `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GH_TOKEN`, `PATH`, and `HOME`. `agy` executes headlessly without prompting for interactive OAuth login URLs.
 - **Decoupled Background Execution & Cross-Device Session Handoff**: Code generation tasks execute in independent server-side background tasks managed by a singleton `RunManager`, decoupled from individual client HTTP connection lifetimes. Closing a client browser tab or socket does not cancel generation.
 - **Re-attachable Active Run**: The server provides `GET /api/runs/active` and `GET /api/runs/active/stream`. Clients opening the application on any device (e.g. mobile phone) query active run status. While `agy` runs, the status is `running`. Once finished, the status is `completed` with the full CLI response.
 - **Application-Level Repository Management**: The webpage automatically loads all user GitHub repositories on startup via `GET /api/projects` in the exact order as GitHub (most recently updated/used repository appearing first). Subdirectories are never listed as projects, and projects are never stored in databases.
@@ -111,6 +112,7 @@ The system consists of two primary tiers:
 - **Backend Language & Runtime**: Python 3.11
 - **API Framework**: FastAPI, Uvicorn, Pydantic
 - **Core AI Agent Engine**: Google Antigravity CLI flat binary (`agy` v1.3+) pre-installed in `/usr/local/bin/agy`
+- **Headless Authentication**: Pre-seeded `~/.gemini/jetski-standalone-oauth-token` initialized from `AGY_OAUTH_TOKEN` environment variable
 - **Version Control & Remote Tools**: Git, GitHub CLI (`gh`)
 - **Frontend Framework**: React 18, TypeScript, Vite
 - **Cloud Infrastructure**: Google Cloud Platform
@@ -122,9 +124,10 @@ The system consists of two primary tiers:
 
 ## 6. Backend
 The backend is structured under `backend/src/remote_code_agent`:
-- `core/config.py`: Environment variable loading, GCP project ID (`ai-learning-499409`), Vercel scope settings (`noam-projects2`), and `AGY_CLI_PATH` (`/usr/local/bin/agy` or `agy`).
+- `core/config.py`: Environment variable loading, GCP project ID (`ai-learning-499409`), Vercel scope settings (`noam-projects2`), `AGY_CLI_PATH` (`/usr/local/bin/agy` or `agy`), and `ensure_agy_oauth_token()` which writes `AGY_OAUTH_TOKEN` to `~/.gemini/jetski-standalone-oauth-token` (0600 permissions).
 - `api/routes.py`: FastAPI routes registering `/api/health`, `/api/projects`, `/api/generate`, `/api/runs/active`, `/api/runs/active/stream`, and file inspection endpoints.
 - `services/code_creation.py`: Core CLI execution module.
+  - Ensures the headless OAuth token file (`~/.gemini/jetski-standalone-oauth-token`) is populated prior to invocation.
   - Spawns the pre-installed `agy` CLI as an asynchronous subprocess:
     `agy -p "<prompt>" --dangerously-skip-permissions`
   - Sets the subprocess working directory to the target project workspace (`workspace/<project_name>`).
@@ -216,6 +219,7 @@ The frontend is structured under `frontend/`:
 
 ## 10. Configuration
 The application relies on the following environment variables:
+- `AGY_OAUTH_TOKEN`: JSON content of `jetski-standalone-oauth-token` injected into the container/server. When present, the backend auto-populates `~/.gemini/jetski-standalone-oauth-token` to authenticate the `agy` CLI headlessly.
 - `GEMINI_API_KEY`: API key for Gemini models and `agy` CLI execution.
 - `GH_TOKEN` / `GITHUB_TOKEN`: GitHub personal access token or OAuth token with `repo` and `workflow` scopes for repository and workflow management.
 - `AGY_CLI_PATH`: Path to the pre-installed Antigravity CLI executable (default: `/usr/local/bin/agy` or `agy`).
@@ -239,7 +243,7 @@ The application relies on the following environment variables:
 - Test execution command: `.venv/bin/python -m unittest discover tests`.
 - Frontend build validation: `npm run build` executed in `frontend/`.
 - Covered test modules:
-  - `test_code_creation.py`: Pre-installed `agy` CLI subprocess execution, argument construction (`-p <prompt> --dangerously-skip-permissions`), workspace directory handling (`cwd`), environment variable propagation (`GEMINI_API_KEY`, `GH_TOKEN`), error capture, and response-on-completion delivery.
+  - `test_code_creation.py`: Pre-installed `agy` CLI subprocess execution, argument construction (`-p <prompt> --dangerously-skip-permissions`), workspace directory handling (`cwd`), environment variable propagation (`AGY_OAUTH_TOKEN`, `GEMINI_API_KEY`, `GH_TOKEN`), token seeding into `~/.gemini/jetski-standalone-oauth-token`, error capture, and response-on-completion delivery.
   - `test_api_routes.py`: REST endpoint verification (including `/api/runs/active` and `/api/runs/active/stream`).
   - `test_run_manager.py`: Background task orchestration, multi-subscriber queues, buffered log replaying, and state retention.
   - `test_github_service.py`: Git operations, branch creation, feature branch push, PR creation, squash-merging, and secret synchronization.
@@ -267,7 +271,7 @@ The application relies on the following environment variables:
   - **Production Deployment (`.github/workflows/deploy-prod.yml`)**:
     - Triggered automatically on push / merge to `main`.
     - Runs backend automated tests and frontend build validation.
-    - Deploys backend API to Google Cloud Run production (`remote-code-agent`).
+    - Deploys backend API to Google Cloud Run production (`remote-code-agent`), forwarding `AGY_OAUTH_TOKEN` secret to provide headless `agy` CLI authentication.
     - Deploys frontend UI to Vercel production (`--prod`) targeting the project scope and setting `VITE_API_URL` to the production backend URL.
 
 
