@@ -399,9 +399,9 @@ function isContinuationPrompt(prompt: string): boolean {
 
     if (!isContinuation) {
       setStreamLogs('')
-      showToast('Starting code generation...')
+      showToast('Executing agy CLI on remote container...')
     } else {
-      showToast('Continuing execution...')
+      showToast('Continuing agy CLI execution...')
     }
 
     try {
@@ -414,14 +414,15 @@ function isContinuationPrompt(prompt: string): boolean {
         undefined,
         currentOffset
       )
-      showToast('Code generation finished!')
+      showToast('agy CLI execution finished!')
       await fetchProjects()
     } catch (err: any) {
       setStreamLogs((prev) => prev + `\n\n❌ Error: ${err.message}\n`)
-      showToast(`Generation error: ${err.message}`)
+      showToast(`Execution error: ${err.message}`)
     } finally {
       setIsGenerating(false)
     }
+
   }
 
   return (

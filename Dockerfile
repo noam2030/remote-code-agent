@@ -16,8 +16,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-cer
     apt-get update && apt-get install -y --no-install-recommends gh && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Install Antigravity CLI (agy)
+RUN curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- -d /usr/local/bin && \
+    chmod +x /usr/local/bin/agy
+
+
 # Install dependencies without pip cache to minimize container size
 RUN pip install --no-cache-dir fastapi uvicorn google-antigravity pydantic
+
 
 # Copy backend files (including backend/docs/)
 COPY backend/ .

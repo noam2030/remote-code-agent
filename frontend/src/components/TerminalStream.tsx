@@ -88,27 +88,44 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
 
   const renderFormattedLogs = (content: string) => {
     if (!content) {
+      if (isGenerating) {
+        return (
+          <span style={{ color: '#93c5fd', fontStyle: 'italic' }}>
+            ⚡ Executing Antigravity CLI (agy) on remote container... waiting for response...
+          </span>
+        )
+      }
       return 'Remote Code Agent ready. Select a project and enter your instructions above to start.'
     }
     const urlRegex = /(https?:\/\/[^\s]+)/g
     const parts = content.split(urlRegex)
-    return parts.map((part, i) => {
-      if (part.match(urlRegex)) {
-        return (
-          <a
-            key={i}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: '#60a5fa', textDecoration: 'underline' }}
-          >
-            {part}
-          </a>
-        )
-      }
-      return part
-    })
+    return (
+      <>
+        {parts.map((part, i) => {
+          if (part.match(urlRegex)) {
+            return (
+              <a
+                key={i}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#60a5fa', textDecoration: 'underline' }}
+              >
+                {part}
+              </a>
+            )
+          }
+          return part
+        })}
+        {isGenerating && (
+          <div style={{ color: '#93c5fd', fontStyle: 'italic', marginTop: '1rem' }}>
+            ⚡ Executing Antigravity CLI (agy)... waiting for response...
+          </div>
+        )}
+      </>
+    )
   }
+
 
   return (
     <div className="terminal-card">
