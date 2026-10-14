@@ -196,16 +196,4 @@ export async function getLoadedSkills(): Promise<LoadedSkillsResponse> {
   return res.json()
 }
 
-export async function cancelActiveRun(runId?: string): Promise<ActiveRunResponse> {
-  const url = resolveUrl(runId ? `/api/runs/${encodeURIComponent(runId)}/cancel` : '/api/runs/cancel')
-  const res = await fetch(url, {
-    method: 'POST',
-  })
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '')
-    throw new Error(errText || `Failed to cancel run: HTTP ${res.status}`)
-  }
-  return res.json()
-}
-
 

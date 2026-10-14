@@ -4,7 +4,6 @@ interface TerminalStreamProps {
   logs: string
   isGenerating: boolean
   onClear: () => void
-  onCancel?: () => void
 }
 
 const DEFAULT_FONT_SIZE = 19
@@ -15,7 +14,6 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
   logs,
   isGenerating,
   onClear,
-  onCancel,
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
@@ -80,11 +78,8 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const isCancelled = logs.includes('[Run Cancelled]')
   const statusBadge = isGenerating ? (
     <span className="terminal-badge badge-running">RUNNING</span>
-  ) : isCancelled ? (
-    <span className="terminal-badge" style={{ background: '#b91c1c', color: '#fff' }}>STOPPED</span>
   ) : hasFinishedOnce ? (
     <span className="terminal-badge badge-success">SUCCESS</span>
   ) : (
@@ -93,44 +88,27 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
 
   const renderFormattedLogs = (content: string) => {
     if (!content) {
-      if (isGenerating) {
-        return (
-          <span style={{ color: '#93c5fd', fontStyle: 'italic' }}>
-            ⚡ Executing Antigravity CLI (agy) on remote container... waiting for response...
-          </span>
-        )
-      }
       return 'Remote Code Agent ready. Select a project and enter your instructions above to start.'
     }
     const urlRegex = /(https?:\/\/[^\s]+)/g
     const parts = content.split(urlRegex)
-    return (
-      <>
-        {parts.map((part, i) => {
-          if (part.match(urlRegex)) {
-            return (
-              <a
-                key={i}
-                href={part}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: '#60a5fa', textDecoration: 'underline' }}
-              >
-                {part}
-              </a>
-            )
-          }
-          return part
-        })}
-        {isGenerating && (
-          <div style={{ color: '#93c5fd', fontStyle: 'italic', marginTop: '1rem' }}>
-            ⚡ Executing Antigravity CLI (agy)... waiting for response...
-          </div>
-        )}
-      </>
-    )
+    return parts.map((part, i) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#60a5fa', textDecoration: 'underline' }}
+          >
+            {part}
+          </a>
+        )
+      }
+      return part
+    })
   }
-
 
   return (
     <div className="terminal-card">
@@ -171,16 +149,6 @@ export const TerminalStream: React.FC<TerminalStreamProps> = ({
               A+
             </button>
           </div>
-          {isGenerating && onCancel && (
-            <button
-              className="terminal-btn"
-              onClick={onCancel}
-              style={{ background: '#dc2626', borderColor: '#b91c1c', color: '#fff', fontWeight: 600 }}
-              title="Stop running execution"
-            >
-              ⏹️ Stop
-            </button>
-          )}
           <button className="terminal-btn" onClick={onClear} disabled={isGenerating}>
             Clear
           </button>

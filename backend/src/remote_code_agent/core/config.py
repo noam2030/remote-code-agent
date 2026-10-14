@@ -41,74 +41,9 @@ def load_env_file(dotenv_path: str | Path | None = None) -> None:
 # Automatically load on import
 load_env_file()
 
-import shutil
-
-import json
-
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GH_TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
-AGY_CLI_PATH = (
-    os.environ.get("AGY_CLI_PATH")
-    or shutil.which("agy")
-    or "/usr/local/bin/agy"
-)
-AGY_OAUTH_TOKEN = os.environ.get("AGY_OAUTH_TOKEN") or os.environ.get("JETSKI_OAUTH_TOKEN", "")
-
-
-def ensure_agy_settings() -> bool:
-    """Ensures ~/.gemini/antigravity-cli/settings.json is configured for headless execution.
-
-    When GEMINI_API_KEY is present, configures modelProvider: "gemini" in settings.json
-    so the agy CLI executes directly against the Gemini API without prompting for OAuth.
-    Preserves any existing permissions or trustedWorkspaces configurations.
-    """
-    settings_path = Path.home() / ".gemini" / "antigravity-cli" / "settings.json"
-    try:
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-        data: dict = {}
-        if settings_path.is_file():
-            try:
-                with open(settings_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-            except Exception:
-                data = {}
-
-        if GEMINI_API_KEY and GEMINI_API_KEY.strip():
-            if data.get("modelProvider") != "gemini":
-                data["modelProvider"] = "gemini"
-                with open(settings_path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=2)
-                return True
-        return True
-    except Exception:
-        return False
-
-
-def ensure_agy_oauth_token() -> bool:
-    """Ensures ~/.gemini/jetski-standalone-oauth-token exists.
-
-    If AGY_OAUTH_TOKEN environment variable is set, writes it to
-    ~/.gemini/jetski-standalone-oauth-token with 0600 permissions.
-    Returns True if the token file exists and is populated, False otherwise.
-    """
-    token_path = Path.home() / ".gemini" / "jetski-standalone-oauth-token"
-    if AGY_OAUTH_TOKEN and AGY_OAUTH_TOKEN.strip():
-        try:
-            token_path.parent.mkdir(parents=True, exist_ok=True)
-            token_path.write_text(AGY_OAUTH_TOKEN.strip(), encoding="utf-8")
-            token_path.chmod(0o600)
-            return True
-        except Exception:
-            pass
-    return token_path.is_file() and token_path.stat().st_size > 0
-
-
-# Ensure settings and token file are populated on startup
-ensure_agy_settings()
-ensure_agy_oauth_token()
-
 AGENT_WORKSPACE = os.environ.get("AGENT_WORKSPACE", "workspace")
-
 SKILLS_REPO_URL = os.environ.get(
     "SKILLS_REPO_URL",
     "https://github.com/noam2030/build-with-agent/tree/main/.agents/skills",

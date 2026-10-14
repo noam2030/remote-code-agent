@@ -99,7 +99,7 @@ MUTATION_CONJUNCTIONS = [
 
 # Patterns representing user approval/confirmation of a proposed plan
 CONFIRMATION_PATTERNS = [
-    r"^(?:yes|yep|yeah|sure|confirm|confirmed|proceed|approved?|go\s+ahead|ok|okay|retry|בםמכןרצ)(?:[,.!\s].*)?$",
+    r"^(?:yes|yep|yeah|sure|confirm|confirmed|proceed|approved?|go\s+ahead|ok|okay|retry)(?:[,.!\s].*)?$",
     r"^(?:please\s+)?(?:confirm|proceed|go\s+ahead|retry)(?:[,.!\s].*)?$",
     r"^(?:i\s+)?(?:confirm|approve|agree)(?:[,.!\s].*)?$",
     r"^(?:looks?\s+good|lgtm|sounds?\s+good)(?:[,.!\s].*)?$",
@@ -205,20 +205,9 @@ def detect_project_from_prompt(prompt: str, available_projects: list[str]) -> Op
         return None
 
     clean_prompt = prompt.lower()
-    normalized_prompt = re.sub(r"[-_]+", " ", clean_prompt)
-
     for proj in sorted(available_projects, key=len, reverse=True):
         proj_clean = proj.lower()
-        # Direct match with word boundaries or separators
         pattern = r"(?:\b|_|-)" + re.escape(proj_clean) + r"(?:\b|_|-)"
         if re.search(pattern, clean_prompt) or proj_clean in clean_prompt:
             return proj
-
-        # Space-normalized match (e.g. 'hello-world-app' matching 'hello world app')
-        proj_spaced = re.sub(r"[-_]+", " ", proj_clean).strip()
-        if proj_spaced and len(proj_spaced) > 3:
-            spaced_pattern = r"\b" + re.escape(proj_spaced) + r"\b"
-            if re.search(spaced_pattern, normalized_prompt):
-                return proj
-
     return None

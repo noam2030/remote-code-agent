@@ -101,17 +101,6 @@ class TestIntentService(unittest.TestCase):
             detect_project_from_prompt("How does this app work?", projects),
         )
 
-    def test_detect_project_with_spaces_and_separators(self):
-        projects = ["hello-world-app", "portfolio-site", "my_custom_tracker"]
-        self.assertEqual(
-            detect_project_from_prompt("now add very very very small webapplication to serve this hello world app.", projects),
-            "hello-world-app",
-        )
-        self.assertEqual(
-            detect_project_from_prompt("update my custom tracker to use postgres", projects),
-            "my_custom_tracker",
-        )
-
     def test_confirmation_queries(self):
         confirmations = [
             "confirm",
@@ -130,7 +119,6 @@ class TestIntentService(unittest.TestCase):
             "lgtm",
             "looks good",
             "retry",
-            "בםמכןרצ",
         ]
         for c in confirmations:
             with self.subTest(query=c):
