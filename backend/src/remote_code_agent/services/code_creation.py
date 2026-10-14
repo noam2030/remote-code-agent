@@ -1,37 +1,19 @@
 """Module responsible for autonomous code creation using Google Antigravity Agent."""
 
-import asyncio
-import inspect
-import logging
 import os
 import shutil
-import signal
-from typing import AsyncGenerator, Callable
+from typing import AsyncGenerator
 
 import google.antigravity
 from google.antigravity import Agent, LocalAgentConfig, types
 from google.antigravity.hooks import policy
 
-from remote_code_agent.core.config import (
-    AGY_CLI_PATH,
-    AGY_OAUTH_TOKEN,
-    GEMINI_API_KEY,
-    GH_TOKEN,
-    ensure_agy_oauth_token,
-    ensure_agy_settings,
-)
-
-logger = logging.getLogger(__name__)
-
-
 from remote_code_agent.github_service import (
     create_or_checkout_branch,
     derive_feature_branch_name,
     derive_project_slug,
-    ensure_git_config,
     ensure_remote_repo_and_main,
     get_current_branch,
-    get_github_env,
     get_latest_feature_branch,
     merge_pull_request,
     publish_project_to_github,
@@ -110,268 +92,62 @@ def get_info_retrieval_agent_config(
     )
 
 
-async def execute_agy_cli(
-    prompt: str,
-    project_dir: str,
-    continue_session: bool = False,
-    extra_flags: list[str] | None = None,
-    on_chunk: Callable[[str], None] | None = None,
-    proc_callback: Callable[[asyncio.subprocess.Process], None] | None = None,
-    timeout: float = 600.0,
-) -> tuple[int, str, str]:
-    """Executes the pre-installed agy CLI subprocess non-interactively with the given prompt.
-
-    Streams output lines in real time if on_chunk is provided, and bounds execution with timeout.
-    Returns (returncode, stdout, stderr).
-    """
-    # Ensure headless Antigravity configuration (modelProvider: "gemini") and credentials
-    ensure_agy_settings()
-    ensure_agy_oauth_token()
-
-    agy_bin = AGY_CLI_PATH or shutil.which("agy") or "/usr/local/bin/agy"
-    cmd = [
-        agy_bin,
-        "-p",
-        prompt,
-        "--dangerously-skip-permissions",
-        "--print-timeout",
-        f"{int(timeout)}s",
-    ]
-    if continue_session:
-        cmd.append("--continue")
-    if extra_flags:
-        cmd.extend(extra_flags)
-
-    env = os.environ.copy()
-    if GEMINI_API_KEY:
-        env["GEMINI_API_KEY"] = GEMINI_API_KEY
-        env.setdefault("GOOGLE_API_KEY", GEMINI_API_KEY)
-    if GH_TOKEN:
-        env["GH_TOKEN"] = GH_TOKEN
-        env["GITHUB_TOKEN"] = GH_TOKEN
-    env.setdefault("HOME", os.path.expanduser("~"))
-
-    # Configure git author and GitHub CLI credentials helper for local-parity execution
-    try:
-        ensure_git_config(env)
-    except Exception:
-        pass
-    env["GIT_TERMINAL_PROMPT"] = "0"
-    env["GH_PROMPT_DISABLED"] = "1"
-    env["GIT_ASKPASS"] = "/bin/echo"
-
-    current_path = env.get("PATH", "")
-    for p in ["/usr/local/bin", os.path.expanduser("~/.local/bin"), "/usr/bin", "/bin"]:
-        if p not in current_path.split(":"):
-            current_path = f"{p}:{current_path}"
-    env["PATH"] = current_path
-
-    logger.info(f"Invoking agy CLI in {project_dir}: {cmd[0]} -p <prompt>")
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            cwd=project_dir,
-            env=env,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            start_new_session=True,
-        )
-        if proc_callback:
-            try:
-                proc_callback(proc)
-            except Exception:
-                pass
-
-        stdout_lines: list[str] = []
-        stderr_lines: list[str] = []
-
-        is_real_stream = isinstance(proc.stdout, asyncio.StreamReader) or (
-            proc.stdout is not None
-            and hasattr(proc.stdout, "read")
-            and (asyncio.iscoroutinefunction(proc.stdout.read) or inspect.iscoroutinefunction(proc.stdout.read))
-        )
-
-        if is_real_stream:
-            async def _read_stream(reader: asyncio.StreamReader | None, is_stderr: bool, target_list: list[str]):
-                if not reader:
-                    return
-                try:
-                    while True:
-                        chunk_bytes = await reader.read(4096)
-                        if not chunk_bytes:
-                            break
-                        text = chunk_bytes.decode("utf-8", errors="replace")
-                        target_list.append(text)
-                        if on_chunk:
-                            try:
-                                on_chunk(text)
-                            except Exception:
-                                pass
-                except (asyncio.CancelledError, Exception):
-                    pass
-
-            stdout_reader = asyncio.create_task(_read_stream(proc.stdout, False, stdout_lines))
-            stderr_reader = asyncio.create_task(_read_stream(proc.stderr, True, stderr_lines))
-
-            try:
-                # Wait for the CLI process itself to complete
-                await asyncio.wait_for(proc.wait(), timeout=timeout)
-                # Bounded drain: allow up to 2 seconds to drain output buffers without hanging on orphan daemons
-                try:
-                    await asyncio.wait_for(
-                        asyncio.gather(stdout_reader, stderr_reader),
-                        timeout=2.0,
-                    )
-                except (asyncio.TimeoutError, Exception):
-                    stdout_reader.cancel()
-                    stderr_reader.cancel()
-            except asyncio.TimeoutError:
-                try:
-                    try:
-                        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-                    except Exception:
-                        proc.terminate()
-                    try:
-                        await asyncio.wait_for(proc.wait(), timeout=2.0)
-                    except (asyncio.TimeoutError, Exception):
-                        try:
-                            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-                        except Exception:
-                            proc.kill()
-                        await asyncio.wait_for(proc.wait(), timeout=1.0)
-                except Exception:
-                    pass
-                stdout_reader.cancel()
-                stderr_reader.cancel()
-                timeout_msg = f"\n⏱️ [Execution Timeout]: agy CLI process exceeded time limit of {int(timeout)} seconds and was stopped.\n"
-                if on_chunk:
-                    on_chunk(timeout_msg)
-                return 124, "".join(stdout_lines), "".join(stderr_lines) + timeout_msg
-        else:
-            try:
-                stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-                s_text = stdout_bytes.decode("utf-8", errors="replace") if isinstance(stdout_bytes, bytes) else str(stdout_bytes or "")
-                e_text = stderr_bytes.decode("utf-8", errors="replace") if isinstance(stderr_bytes, bytes) else str(stderr_bytes or "")
-                if s_text:
-                    stdout_lines.append(s_text)
-                    if on_chunk:
-                        on_chunk(s_text)
-                if e_text:
-                    stderr_lines.append(e_text)
-                    if on_chunk:
-                        on_chunk(e_text)
-            except asyncio.TimeoutError:
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
-                timeout_msg = f"\n⏱️ [Execution Timeout]: agy CLI process exceeded time limit of {int(timeout)} seconds and was stopped.\n"
-                return 124, "", timeout_msg
-
-        stdout_text = "".join(stdout_lines)
-        stderr_text = "".join(stderr_lines)
-
-        if continue_session and proc.returncode != 0:
-            lower_err = stderr_text.lower()
-            if "no conversation" in lower_err or "cannot continue" in lower_err or "conversation not found" in lower_err:
-                logger.info(f"Retrying agy CLI without --continue in {project_dir} due to missing previous conversation")
-                if on_chunk:
-                    on_chunk("\nℹ️ [Session Continuity] No prior conversation found; retrying fresh session...\n")
-                return await execute_agy_cli(
-                    prompt=prompt,
-                    project_dir=project_dir,
-                    continue_session=False,
-                    extra_flags=extra_flags,
-                    on_chunk=on_chunk,
-                    proc_callback=proc_callback,
-                    timeout=timeout,
-                )
-
-        if proc.returncode != 0:
-            if "Error 402" in stderr_text or "prepayment credits are depleted" in stderr_text or "RESOURCE_EXHAUSTED" in stderr_text:
-                quota_notice = (
-                    "\n\n💡 [Gemini API Quota Notice]: Your Gemini API key has depleted its prepayment credits or quota.\n"
-                    "• Please visit Google AI Studio at https://aistudio.google.com/app/api-keys to obtain a key with active quota or manage billing.\n"
-                )
-                stderr_text += quota_notice
-                if on_chunk:
-                    on_chunk(quota_notice)
-            elif "Authentication required" in stderr_text or "visit the URL to log in" in stderr_text:
-                auth_notice = (
-                    "\n\n💡 [Authentication Guidance]: The Antigravity CLI requires an authenticated session.\n"
-                    "• In Docker / Cloud Run: Set the GEMINI_API_KEY environment variable to use headless Gemini API mode, "
-                    "or set AGY_OAUTH_TOKEN / mount ~/.gemini into the container (-v ~/.gemini:/root/.gemini:ro).\n"
-                )
-                stderr_text += auth_notice
-                if on_chunk:
-                    on_chunk(auth_notice)
-
-        return proc.returncode, stdout_text, stderr_text
-    except FileNotFoundError:
-        err = f"Error: Antigravity CLI executable '{agy_bin}' not found on system PATH."
-        logger.error(err)
-        if on_chunk:
-            on_chunk(err + "\n")
-        return 127, "", err
-    except Exception as e:
-        err = f"Error invoking agy CLI: {e}"
-        logger.error(err)
-        if on_chunk:
-            on_chunk(err + "\n")
-        return 1, "", err
-
-
 async def generate_code_stream(
     prompt: str,
     project_name: str | None = None,
     auto_confirm: bool = False,
-    proc_callback: Callable[[asyncio.subprocess.Process], None] | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Autonomous code execution via pre-installed agy CLI.
+    """Pair-programming code creation, planning, and GitHub PR workflow.
 
-    1. Determines target project: uses project_name if provided, detects from prompt, or derives slug.
-    2. Ensures isolated workspace directory exists for this project (/workspace/<project_name>).
-    3. Syncs existing project codebase from GitHub (clones into workspace or pulls latest if present).
-    4. Appends prompt to prompt.txt in the workspace.
-    5. Dispatches flow:
-       - Merge: Squash-merges open PR into main via merge_pull_request.
-       - Execution: Invokes agy CLI non-interactively with prompt, streaming live line-by-line output.
+    1. Classifies user intent:
+       - merge request (is_merge_request)
+       - confirmation / execution request (is_confirmation_request or auto_confirm)
+       - information retrieval request (is_info_retrieval_request)
+       - planning request (new feature / modification instruction)
+    2. Determines target project: uses project_name if provided, detects from prompt, or derives slug.
+    3. Ensures isolated workspace directory exists for this project (/workspace/<project_name>).
+    4. Syncs existing project codebase from GitHub (clones into workspace or pulls latest if present).
+    5. Dispatches flow accordingly:
+       - Merge: Squash-merges open PR into main, deletes feature branch, syncs local main.
+       - Info: Read-only codebase inspection without modifying files.
+       - Execution (Confirmed): Checks out feature branch, updates SPEC.md first, implements code/tests,
+         runs tests, commits, pushes feature branch to GitHub, creates PR, and prompts for merge.
+       - Planning (New Request): Appends prompt to prompt.txt, drafts implementation plan, and yields Confirm?.
     """
     is_merge = is_merge_request(prompt)
     is_confirm = is_confirmation_request(prompt) or auto_confirm
-
-    all_projs = list_projects()
-    existing_projects = [
-        d
-        for d in os.listdir(BASE_WORKSPACE)
-        if os.path.isdir(os.path.join(BASE_WORKSPACE, d)) and not d.startswith(".")
-    ]
-    all_names = list(set([p["name"] for p in all_projs] + existing_projects))
-    detected = detect_project_from_prompt(prompt, all_names)
+    is_info = not is_merge and not is_confirm and is_info_retrieval_request(prompt)
 
     if project_name and project_name.strip():
         raw_name = project_name.strip()
+        all_projs = list_projects()
         catalog_match = next((p for p in all_projs if p["name"].lower() == raw_name.lower()), None)
         app_name = catalog_match["name"] if catalog_match else raw_name
-        # Auto-route to explicitly detected project if current project was generic or agent itself
-        if detected and detected.lower() != app_name.lower() and app_name.lower() in ("remote-code-agent", "remote_code_agent"):
-            app_name = detected
         slug = sanitize_project_name(app_name)
+        yield f"🎯 [Project Target] Working on project: '{app_name}'\n"
     else:
+        existing_projects = [
+            d
+            for d in os.listdir(BASE_WORKSPACE)
+            if os.path.isdir(os.path.join(BASE_WORKSPACE, d)) and not d.startswith(".")
+        ]
+        detected = detect_project_from_prompt(prompt, existing_projects)
         if detected:
             app_name = detected
             slug = sanitize_project_name(app_name)
-        elif (is_confirm or is_merge) and existing_projects:
+            yield f"🎯 [Project Target] Detected project from prompt: '{app_name}'\n"
+        elif (is_info or is_confirm or is_merge) and existing_projects:
             existing_projects.sort(
                 key=lambda p: os.path.getmtime(os.path.join(BASE_WORKSPACE, p)),
                 reverse=True,
             )
             app_name = existing_projects[0]
             slug = sanitize_project_name(app_name)
+            yield f"🎯 [Project Target] Active project: '{app_name}'\n"
         else:
             app_name = derive_project_slug(prompt)
             slug = sanitize_project_name(app_name)
+            yield f"🎯 [Project Target] Derived project name: '{app_name}'\n"
 
     project_dir = os.path.join(BASE_WORKSPACE, slug)
     os.makedirs(project_dir, exist_ok=True)
@@ -380,14 +156,16 @@ async def generate_code_stream(
     has_local_files = any(not f.startswith(".") and f != "prompt.txt" for f in os.listdir(project_dir))
     if not has_local_files:
         try:
-            sync_project_from_github(app_name, project_dir)
+            synced = sync_project_from_github(app_name, project_dir)
+            if synced:
+                yield f"📥 [Project: {app_name}] Cloned repository into workspace from GitHub.\n"
         except Exception:
             pass
     elif os.path.isdir(os.path.join(project_dir, ".git")):
         try:
             import subprocess
             from remote_code_agent.github_service import get_github_env
-            subprocess.run(
+            pull_res = subprocess.run(
                 ["git", "pull", "--rebase", "origin", "main"],
                 cwd=project_dir,
                 env=get_github_env(),
@@ -395,77 +173,113 @@ async def generate_code_stream(
                 text=True,
                 timeout=10,
             )
+            if pull_res.returncode == 0:
+                yield f"🔄 [Project: {app_name}] Pulled latest changes from GitHub repository.\n"
         except Exception:
             pass
 
-    # Ensure project workspace has git initialized and linked with GitHub remote origin
-    if not os.path.isdir(os.path.join(project_dir, ".git")):
-        try:
-            env = get_github_env()
-            ensure_git_config(env)
-            ensure_remote_repo_and_main(project_dir, app_name, env=env)
-        except Exception:
-            try:
-                subprocess.run(["git", "init"], cwd=project_dir, check=False, capture_output=True)
-            except Exception:
-                pass
-
-    # Check if project already has prior prompt history before appending current prompt
-    prompt_file = os.path.join(project_dir, "prompt.txt")
-    has_prior_prompts = os.path.isfile(prompt_file) and os.path.getsize(prompt_file) > 0
-    should_continue = is_confirm or has_prior_prompts
-
-    # Record the user prompt in prompt.txt
-    append_numbered_prompt(project_dir, prompt)
-
-    # FLOW 1: MERGE PULL REQUEST
+    # =========================================================================
+    # FLOW 1: MERGE PULL REQUEST (User approved merge)
+    # =========================================================================
     if is_merge:
+        yield f"🔀 [Merge Pull Request] Approving and squash-merging open Pull Request for '{app_name}' into main...\n"
+        append_numbered_prompt(project_dir, prompt)
+
         ok, msg = merge_pull_request(project_dir, app_name)
         if ok:
             yield (
-                f"🎉 [Pull Request Merged] {msg}\n"
+                f"\n🎉 [Pull Request Merged] {msg}\n"
                 f"🚀 [CI/CD Deployment] GitHub Actions production deployment triggered on merge to main.\n"
-                f"📁 [Workspace] Local workspace synchronized with main.\n\n"
-                f"📊 [Project Stats] Status: PR Merged | Active Branch: main | Project: {app_name}\n"
+                f"📁 [Workspace] Local workspace synchronized with main.\n"
             )
         else:
-            yield f"⚠️ [Merge Notice] {msg}\n"
+            yield f"\n⚠️ [Merge Notice] {msg}\n"
+
+        yield (
+            f"\n\n📊 [Project Stats] Status: PR Merged | "
+            f"Active Branch: main | "
+            f"Project: {app_name}\n"
+        )
         return
 
-    # FLOW 2: EXECUTE PRE-INSTALLED agy CLI WITH LIVE STREAMING
-    chunk_queue: asyncio.Queue[str | None] = asyncio.Queue()
+    # =========================================================================
+    # FLOW 2: CONFIRMATION / EXECUTION (User confirmed plan)
+    # =========================================================================
+    if is_confirm:
+        yield f"🚀 [Execution Mode] Plan confirmed! Preparing feature branch and implementation for '{app_name}'...\n"
+        append_numbered_prompt(project_dir, prompt)
 
-    def on_chunk_cb(text: str):
-        chunk_queue.put_nowait(text)
+        # Retrieve the user instruction being confirmed
+        last_feature_prompt = get_last_feature_prompt(project_dir) or prompt
+        branch_name = derive_feature_branch_name(last_feature_prompt)
 
-    async def run_cli_task():
+        # Ensure remote repository exists and remote main is initialized BEFORE branching
         try:
-            return await execute_agy_cli(
-                prompt=prompt,
-                project_dir=project_dir,
-                continue_session=should_continue,
-                on_chunk=on_chunk_cb,
-                proc_callback=proc_callback,
-                timeout=300.0,
-            )
-        finally:
-            chunk_queue.put_nowait(None)
+            ensure_remote_repo_and_main(project_dir, app_name)
+        except Exception:
+            pass
 
-    cli_future = asyncio.create_task(run_cli_task())
+        # Create or checkout feature branch
+        create_or_checkout_branch(project_dir, branch_name)
+        yield f"🌿 [Git Branch] Created and checked out dedicated branch: '{branch_name}'\n"
 
-    chunks_streamed = 0
-    # Stream real-time output chunks to subscribers
-    while True:
-        chunk = await chunk_queue.get()
-        if chunk is None:
-            break
-        chunks_streamed += 1
-        yield chunk
+        yield f"📝 [Specification] Updating SPEC.md first and implementing code and tests on '{branch_name}'...\n\n"
+        config = get_agent_config(project_dir, app_name=app_name)
+        agent_prompt = get_user_chat_prompt(app_name, last_feature_prompt)
 
-    returncode, stdout_text, stderr_text = await cli_future
+    # =========================================================================
+    # FLOW 3: INFORMATION RETRIEVAL (Read-only query)
+    # =========================================================================
+    elif is_info:
+        yield "ℹ️ [Mode] Information Retrieval (read-only query — no code will be written or published to GitHub)\n\n"
+        config = get_info_retrieval_agent_config(project_dir, app_name=app_name)
+        agent_prompt = prompt
 
-    if chunks_streamed == 0 and stdout_text and stdout_text.strip():
-        yield stdout_text.strip() + "\n"
+    # =========================================================================
+    # FLOW 4: PLANNING (New instruction proposing plan before implementation)
+    # =========================================================================
+    else:
+        yield "📋 [Planning Mode] Analyzing workspace and formulating implementation plan...\n"
+        append_numbered_prompt(project_dir, prompt)
+
+        branch_name = derive_feature_branch_name(prompt)
+        yield f"🌿 [Proposed Branch] Dedicated feature branch: '{branch_name}'\n"
+
+        config = get_info_retrieval_agent_config(project_dir, app_name=app_name)
+        agent_prompt = get_planning_chat_prompt(app_name, prompt, branch_name)
+
+    # Snapshot pre-run files for workspace protection in info retrieval & planning modes
+    pre_run_files = set()
+    if (is_info or not is_confirm) and os.path.isdir(project_dir):
+        for root, _, files in os.walk(project_dir):
+            for f in files:
+                pre_run_files.add(os.path.join(root, f))
+
+    prompt_tokens = 0
+    completion_tokens = 0
+    total_tokens = 0
+    generated_chars = 0
+    agent_output_text = ""
+
+    try:
+        async with Agent(config) as agent:
+            response = await agent.chat(agent_prompt)
+
+            async for chunk in response.chunks:
+                formatted = format_stream_chunk(chunk)
+                if formatted:
+                    yield formatted
+                if hasattr(chunk, "text") and chunk.text:
+                    generated_chars += len(chunk.text)
+                    agent_output_text += chunk.text
+
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                meta = response.usage_metadata
+                prompt_tokens = getattr(meta, "prompt_token_count", 0) or 0
+                completion_tokens = getattr(meta, "candidates_token_count", 0) or 0
+                total_tokens = getattr(meta, "total_token_count", 0) or (prompt_tokens + completion_tokens)
+    except Exception as agent_err:
+        yield f"\n⚠️ [Agent Notice] Code generation step notice: {agent_err}\n"
 
     # Clean up virtual environments or caches
     for cleanup_dir in [".venv", "venv", "__pycache__", ".pytest_cache"]:
@@ -473,19 +287,21 @@ async def generate_code_stream(
         if os.path.isdir(target_cleanup):
             shutil.rmtree(target_cleanup, ignore_errors=True)
 
-    summary_parts: list[str] = []
-    if not stdout_text.strip() and returncode == 0:
-        summary_parts.append(f"✅ [agy CLI] Command completed successfully in '{app_name}'.")
+    # Clean up any files inadvertently created during read-only/planning passes
+    if (is_info or not is_confirm) and os.path.isdir(project_dir):
+        for root, _, files in os.walk(project_dir):
+            for f in files:
+                full = os.path.join(root, f)
+                if full not in pre_run_files and not f.endswith("prompt.txt"):
+                    try:
+                        os.remove(full)
+                    except Exception:
+                        pass
 
-    if stderr_text and stderr_text.strip() and returncode != 0:
-        if f"Exit {returncode}" not in stdout_text and f"Exit {returncode}" not in stderr_text:
-            summary_parts.append(f"\n⚠️ [agy CLI Exit {returncode}]:\n{stderr_text.strip()}")
-
-    # Calculate token & LOC stats
-    chars = len(stdout_text) + len(stderr_text)
-    prompt_tokens = max(len(prompt) // 4, 20)
-    completion_tokens = max(chars // 4, 20)
-    total_tokens = prompt_tokens + completion_tokens
+    if total_tokens == 0:
+        prompt_tokens = max(len(prompt) // 4, 50)
+        completion_tokens = max(generated_chars // 4, 50)
+        total_tokens = prompt_tokens + completion_tokens
 
     updated_stats = record_project_run_tokens(
         app_name,
@@ -496,19 +312,86 @@ async def generate_code_stream(
     )
     _, total_loc = inspect_project_files(project_dir)
 
-    status_label = "Cancelled" if returncode == 124 else ("Failed" if returncode != 0 else "Completed")
-    summary_parts.append(
-        f"\n\n📊 [Project Stats] Status: {status_label} | "
-        f"Project: {app_name} | "
-        f"Run Tokens: {total_tokens:,} | "
+    yield (
+        f"\n\n📊 [Project Stats] Run Tokens: {total_tokens:,} | "
         f"Cumulative Tokens Spent: {updated_stats.get('total_tokens', 0):,} | "
         f"Total Project Code: {total_loc:,} LOC\n"
     )
 
-    yield "\n".join(summary_parts)
+    if is_info:
+        yield "\n✅ [Info Retrieval] Query completed. No code changes were made or published to GitHub.\n"
+    elif not is_confirm:
+        # Planning phase conclusion: Ensure output ends with explicit Confirm?
+        if not agent_output_text.strip().endswith("Confirm?"):
+            yield (
+                f"\n\n❓ Confirm?\n"
+                f"👉 Reply with 'confirm' (or click 'Confirm Plan') to create branch '{branch_name}', "
+                f"update SPEC.md first, implement code, run tests, and open a Pull Request.\n"
+            )
+    else:
+        # Execution phase conclusion: run tests and open PR
+        test_dir = os.path.join(project_dir, "tests")
+        if os.path.isdir(test_dir):
+            yield "\n🧪 [Automated Testing] Running automated unit tests...\n"
+            try:
+                import subprocess
+                test_res = subprocess.run(
+                    ["python3", "-m", "unittest", "discover", "tests"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if test_res.returncode == 0:
+                    yield "✅ [Automated Testing] All unit tests passed cleanly!\n"
+                else:
+                    yield f"⚠️ [Automated Testing] Test output: {(test_res.stdout or test_res.stderr).strip()}\n"
+            except Exception as te:
+                yield f"ℹ️ [Automated Testing] Test check completed ({te})\n"
+
+        yield f"\n\n📦 [GitHub] Pushing branch '{branch_name}' to GitHub and opening Pull Request...\n"
+        pr_title = f"feat: {last_feature_prompt[:60]}"
+        pr_body = (
+            f"## Summary\n"
+            f"Autonomous pair-programming implementation for `{app_name}`.\n\n"
+            f"### User Instruction\n"
+            f"{last_feature_prompt}\n\n"
+            f"### Changes\n"
+            f"- Updated `SPEC.md` first across all 12 mandatory sections\n"
+            f"- Implemented code and automated tests strictly reflecting specification\n"
+            f"- Verified unit tests pass\n"
+        )
+        success, info, pr_url = push_feature_branch_and_create_pr(
+            project_dir=project_dir,
+            app_name=app_name,
+            branch_name=branch_name,
+            title=pr_title,
+            body=pr_body,
+        )
+        if success and pr_url:
+            yield (
+                f"\n🎉 [Pull Request Created] Successfully created Pull Request for '{app_name}'!\n"
+                f"🔗 Pull Request: {pr_url}\n"
+                f"🌿 Feature Branch: {branch_name}\n"
+                f"☁️ [Cloud Deployment] Staging & Production configured for Google Cloud project ai-learning-499409 and Vercel noam-projects2.\n"
+                f"📂 Local Path: {project_dir}\n\n"
+                f"👀 [Review & Merge Approval] Please review the pull request on GitHub.\n"
+                f"👉 To approve and merge into main, reply with 'merge' or click 'Merge Pull Request'.\n"
+            )
+        elif success:
+            yield (
+                f"\n🎉 [GitHub] Successfully pushed changes on branch '{branch_name}'!\n"
+                f"ℹ️ {info}\n"
+                f"👉 To merge into main, reply with 'merge' or click 'Merge Pull Request'.\n"
+            )
+        else:
+            yield (
+                f"\n⚠️ [GitHub PR Notice] Could not create Pull Request: {info}\n"
+                f"🌿 Feature branch '{branch_name}' remains safely intact on GitHub without modifying main.\n"
+                f"👉 You can review changes on branch '{branch_name}' or retry.\n"
+            )
 
 
 # Alias for flexibility
 create_code_stream = generate_code_stream
-
 

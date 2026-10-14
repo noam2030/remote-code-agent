@@ -1,9 +1,7 @@
 """Unit tests for RunManager service and cross-device active run streaming."""
 
 import asyncio
-import time
 import unittest
-from unittest.mock import AsyncMock, MagicMock
 
 from fastapi.testclient import TestClient
 
@@ -252,34 +250,6 @@ class TestRunManager(unittest.IsolatedAsyncioTestCase):
         self.assertIn("💬 [User] merge", combined_logs)
         self.assertIn("🎉 Pull Request Merged!", combined_logs)
 
-    async def test_arbitrary_followup_prompt_inherits_prior_logs_for_same_project(self):
-        async def turn1_gen(prompt, project_name=None):
-            yield "Generated component A successfully.\n"
-
-        async def turn2_gen(prompt, project_name=None):
-            yield "Publishing code to GitHub repository.\n"
-
-        # Turn 1: implement a
-        run1 = self.manager.start_run(
-            prompt="implement a",
-            project_name="my-app",
-            generator_fn=turn1_gen,
-        )
-        await run1.task
-
-        # Turn 2: arbitrary follow-up (e.g. "great, publish it")
-        run2 = self.manager.start_run(
-            prompt="great, publish it",
-            project_name="my-app",
-            generator_fn=turn2_gen,
-        )
-        await run2.task
-
-        combined_logs = "".join(run2.logs)
-        self.assertIn("Generated component A successfully.", combined_logs)
-        self.assertIn("💬 [User] great, publish it", combined_logs)
-        self.assertIn("Publishing code to GitHub repository.", combined_logs)
-
     async def test_new_feature_does_not_inherit_prior_logs(self):
         async def gen1(prompt, project_name=None):
             yield "Weather app plan\n"
@@ -306,36 +276,6 @@ class TestRunManager(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Weather app plan", combined_logs)
         self.assertIn("Todo app plan", combined_logs)
 
-    async def test_cancel_run_terminates_task_and_process(self):
-        mock_proc = MagicMock()
-        mock_proc.returncode = None
-        mock_proc.wait = AsyncMock(return_value=0)
-
-        async def slow_generator(prompt, project_name=None, proc_callback=None):
-            if proc_callback:
-                proc_callback(mock_proc)
-            await asyncio.sleep(5.0)
-            yield "never reached"
-
-        run = self.manager.start_run(
-            prompt="cancel test",
-            project_name="cancel-proj",
-            generator_fn=slow_generator,
-        )
-        await asyncio.sleep(0.01)
-        self.assertEqual(run.status, "running")
-        self.assertIs(run.process, mock_proc)
-
-        cancelled = await self.manager.cancel_run(run.run_id)
-        self.assertTrue(cancelled)
-        self.assertEqual(run.status, "cancelled")
-        mock_proc.terminate.assert_called_once()
-        self.assertIn("Run Cancelled", "".join(run.logs))
-
-        # Trying to cancel again when already cancelled should return False
-        again = await self.manager.cancel_run(run.run_id)
-        self.assertFalse(again)
-
 
 class TestActiveRunApiEndpoints(unittest.TestCase):
     def setUp(self):
@@ -357,54 +297,6 @@ class TestActiveRunApiEndpoints(unittest.TestCase):
             run_manager.current_run = None
             response = self.client.get("/api/runs/active/stream")
             self.assertEqual(response.status_code, 404)
-        finally:
-            run_manager.current_run = orig_run
-
-    def test_cancel_active_run_endpoint(self):
-        from remote_code_agent.services.run_manager import run_manager, ActiveRun
-        run = ActiveRun(
-            run_id="test-cancel-id",
-            project_name="test-proj",
-            prompt="test prompt",
-            status="running",
-            started_at=time.time(),
-        )
-        orig_run = run_manager.current_run
-        run_manager.current_run = run
-        try:
-            res = self.client.post("/api/runs/cancel")
-            self.assertEqual(res.status_code, 200)
-            data = res.json()
-            self.assertEqual(data["status"], "cancelled")
-        finally:
-            run_manager.current_run = orig_run
-
-    def test_cancel_run_by_id_endpoint(self):
-        from remote_code_agent.services.run_manager import run_manager, ActiveRun
-        run = ActiveRun(
-            run_id="test-cancel-id-2",
-            project_name="test-proj",
-            prompt="test prompt",
-            status="running",
-            started_at=time.time(),
-        )
-        orig_run = run_manager.current_run
-        run_manager.current_run = run
-        try:
-            res = self.client.post("/api/runs/test-cancel-id-2/cancel")
-            self.assertEqual(res.status_code, 200)
-            data = res.json()
-            self.assertEqual(data["status"], "cancelled")
-        finally:
-            run_manager.current_run = orig_run
-
-    def test_cancel_run_400_when_no_active_run(self):
-        from remote_code_agent.services.run_manager import run_manager
-        orig_run = run_manager.current_run
-        try:
-            run_manager.current_run = None
-            res = self.client.post("/api/runs/cancel")
-            self.assertEqual(res.status_code, 400)
         finally:
             run_manager.current_run = orig_run
 

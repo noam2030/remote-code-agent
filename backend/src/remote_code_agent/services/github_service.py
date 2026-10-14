@@ -105,19 +105,13 @@ def ensure_git_config(env: dict[str, str] | None = None):
     if env is None:
         env = get_github_env()
     try:
-        res = subprocess.run(["git", "config", "--global", "user.name"], capture_output=True, text=True, env=env)
-        if not res.stdout.strip():
-            subprocess.run(["git", "config", "--global", "user.name", "Remote Code Agent"], check=False, env=env)
-            subprocess.run(["git", "config", "--global", "user.email", "agent@remote-code-agent.local"], check=False, env=env)
-    except Exception:
-        pass
+        subprocess.run(["git", "config", "user.name"], check=True, capture_output=True, env=env)
+    except subprocess.CalledProcessError:
+        subprocess.run(["git", "config", "--global", "user.name", "Remote Code Agent"], check=True, env=env)
+        subprocess.run(["git", "config", "--global", "user.email", "agent@remote-code-agent.local"], check=True, env=env)
 
-    try:
-        subprocess.run(["git", "config", "--global", "init.defaultBranch", "main"], check=False, env=env)
-        # Setup gh credential helper for git commands so git push uses GH_TOKEN automatically
-        subprocess.run(["gh", "auth", "setup-git"], check=False, capture_output=True, env=env)
-    except Exception:
-        pass
+    # Setup gh credential helper for git commands
+    subprocess.run(["gh", "auth", "setup-git"], check=False, capture_output=True, env=env)
 
 
 def get_github_owner(env: dict[str, str] | None = None) -> str:

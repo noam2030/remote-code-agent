@@ -5,7 +5,6 @@ interface PromptEditorProps {
   selectedProject: Project | null
   isGenerating: boolean
   onSubmit: (prompt: string, projectName?: string) => void
-  onCancel?: () => void
 }
 
 const CHIPS = [
@@ -31,7 +30,6 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
   selectedProject,
   isGenerating,
   onSubmit,
-  onCancel,
 }) => {
   const [prompt, setPrompt] = useState('')
 
@@ -87,35 +85,14 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
         <div className="target-reminder">
           Pair-programming workflow for <strong>{targetName}</strong>: plans first, commits to dedicated feature branches, and opens Pull Requests for your review before merging to main.
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          {isGenerating && onCancel && (
-            <button
-              type="button"
-              className="btn-cancel"
-              onClick={onCancel}
-              style={{
-                background: '#dc2626',
-                color: '#fff',
-                border: '1px solid #b91c1c',
-                padding: '0.625rem 1.25rem',
-                borderRadius: '8px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-              title="Stop running execution"
-            >
-              <span>⏹️ Stop Run</span>
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn-generate"
-            onClick={() => handleSubmit()}
-            disabled={isGenerating || !prompt.trim()}
-          >
-            <span>{isGenerating ? '⏳ Processing...' : '✨ Send Instruction'}</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn-generate"
+          onClick={() => handleSubmit()}
+          disabled={isGenerating || !prompt.trim()}
+        >
+          <span>{isGenerating ? '⏳ Processing...' : '✨ Send Instruction'}</span>
+        </button>
       </div>
     </div>
   )

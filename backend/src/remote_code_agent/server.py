@@ -36,12 +36,6 @@ async def lifespan(app: FastAPI):
         )
     except Exception as e:
         logger.warning(f"Failed to load dynamic skills on startup: {e}")
-
-    try:
-        from remote_code_agent.github_service import ensure_git_config
-        ensure_git_config()
-    except Exception as e:
-        logger.warning(f"Failed to initialize git config on startup: {e}")
     yield
 
 
@@ -167,27 +161,6 @@ async def api_stream_active_run(
             "X-Accel-Buffering": "no",
         },
     )
-
-
-@app.post("/api/runs/cancel")
-async def api_cancel_active_run():
-    """Cancels the currently active run, terminating subprocess and freeing server."""
-    cancelled = await run_manager.cancel_run()
-    if not cancelled:
-        raise HTTPException(status_code=400, detail="No active run to cancel or cancellation failed.")
-    return run_manager.get_active_run()
-
-
-@app.post("/api/runs/{run_id}/cancel")
-async def api_cancel_run_by_id(run_id: str):
-    """Cancels a specific run by ID, terminating subprocess and freeing server."""
-    cancelled = await run_manager.cancel_run(run_id=run_id)
-    if not cancelled:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Run '{run_id}' is not active or cancellation failed.",
-        )
-    return run_manager.get_active_run()
 
 
 # Backward-compatible direct /generate and /run routes
